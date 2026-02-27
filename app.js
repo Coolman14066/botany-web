@@ -43,7 +43,7 @@ const ICONS = {
 // CONFIGURATION
 // ============================================
 const CONFIG = {
-  csvPath: 'Botany Planting Value Tracker - Copy(Sheet1).csv',
+  csvPath: '/data.csv',
   tiers: {
     propagator: { min: 20, icon: ICONS.propagator, name: 'Propagator', class: 'propagator' },
     pollinator: { min: 10, icon: ICONS.pollinator, name: 'Pollinator', class: 'pollinator' },
