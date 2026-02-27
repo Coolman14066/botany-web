@@ -234,8 +234,18 @@ const PHASE_2_PODS = [
 // ============================================
 async function loadCSVData() {
   try {
-    const response = await fetch(CONFIG.csvPath);
+    // URL-encode the path for servers that need it
+    const response = await fetch(encodeURI(CONFIG.csvPath));
+    if (!response.ok) {
+      console.error('CSV fetch failed:', response.status);
+      return [];
+    }
     const text = await response.text();
+    // Guard: if the response looks like HTML (e.g. a 404 page), bail
+    if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
+      console.error('CSV endpoint returned HTML instead of CSV data');
+      return [];
+    }
     return parseCSV(text);
   } catch (error) {
     console.error('Error loading CSV:', error);
@@ -354,15 +364,30 @@ function processData(data) {
 function parseHours(value) {
   if (!value) return 0;
 
-  // Handle ranges like "10-15" or "5-10"
-  const rangeMatch = value.match(/(\d+)\s*[-–]\s*(\d+)/);
+  const lower = value.toLowerCase();
+
+  // Skip if it's clearly not a numeric answer (long text / narrative)
+  if (lower.length > 60 && !lower.match(/^\d/)) return 0;
+  if (lower === 'n/a' || lower === 'na' || lower === 'none') return 0;
+
+  // Detect if the value mentions minutes
+  const isMinutes = lower.includes('min');
+
+  // Handle explicit ranges at start: "10-15", "5 - 10", "30-45 mins"
+  const rangeMatch = value.match(/^\s*(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)/);
   if (rangeMatch) {
-    return (parseInt(rangeMatch[1]) + parseInt(rangeMatch[2])) / 2;
+    const avg = (parseFloat(rangeMatch[1]) + parseFloat(rangeMatch[2])) / 2;
+    return isMinutes ? avg / 60 : avg;
   }
 
-  // Handle single numbers
-  const numMatch = value.match(/(\d+)/);
-  return numMatch ? parseInt(numMatch[1]) : 0;
+  // Handle leading number: "40 - Automated analysis...", "3", "2 hours", ".5"
+  const leadingNum = value.match(/^\s*(\d*\.?\d+)/);
+  if (leadingNum) {
+    const num = parseFloat(leadingNum[1]);
+    return isMinutes ? num / 60 : num;
+  }
+
+  return 0;
 }
 
 function parseTools(value) {
