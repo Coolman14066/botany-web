@@ -11,16 +11,24 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Styles -->
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="feedback-widget.css">
 
   <!-- Supabase Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
+  <!-- Gate check -->
+  <script>
+    if (sessionStorage.getItem('botany-gate') !== 'true') {
+      window.location.href = 'gate.html';
+    }
+  </script>
+
   <!-- Header -->
   <header class="header">
     <div class="container header-content">
@@ -34,20 +42,30 @@
           <li><a href="#leaderboard">Leaderboard</a></li>
           <li><a href="#analytics">Insights</a></li>
           <li><a href="#gallery">Use Cases</a></li>
+          <li><a href="resources.html">Resources</a></li>
         </ul>
       </nav>
       <div class="header-actions">
         <a href="#join" class="btn btn-outline-header">Join Botany</a>
         <a href="#submit" class="btn btn-primary btn-header">Submit Use Case</a>
+        <button class="btn btn-outline-header btn-login" id="login-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span id="login-btn-text">Log In</span>
+        </button>
+        <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
       </div>
     </div>
   </header>
 
   <!-- Hero Section -->
   <section id="hero" class="hero">
+    <div class="hero-orb-2"></div>
+    <div class="hero-orb-3"></div>
     <div class="hero-content container">
       <span class="greater-than animate-in">&gt;</span>
-      <h1 class="animate-in animate-delay-1">BOTANY AI INNOVATORS</h1>
+      <h1 class="animate-in animate-delay-1" style="letter-spacing:0.12em">B.O.T.A.N.Y.<span style="opacity:0.6">(E)</span></h1>
       <p class="hero-subtitle animate-in animate-delay-2">Cultivating the Future with Artificial Intelligence</p>
       <p class="hero-tagline animate-in animate-delay-3">"From seeds of curiosity to forests of innovation"</p>
 
@@ -76,6 +94,12 @@
         </div>
       </div>
     </div>
+
+    <!-- Scroll indicator -->
+    <div class="scroll-indicator">
+      <span>SCROLL</span>
+      <div class="scroll-line"></div>
+    </div>
   </section>
 
   <!-- About Botany -->
@@ -83,7 +107,7 @@
     <div class="container">
       <div class="about-header">
         <span class="about-badge">BUILDING ORGANIC TECH & AI NERD ENRICHMENT</span>
-        <h2 class="about-headline">What is <span class="accent-gradient">Botany</span>?</h2>
+        <h2 class="about-headline"><span class="accent-gradient">What is Botany?</span></h2>
         <p class="about-lead">A peer-driven AI upskilling community of ~90 practitioners pushing the boundaries of
           what's possible with AI.</p>
       </div>
@@ -181,6 +205,12 @@
 
   <!-- Pod Idea Modal -->
   <div id="pod-idea-modal" class="usecase-modal" aria-hidden="true"></div>
+
+  <!-- Pod Post Modal (Share a Link) -->
+  <div id="pod-post-modal" class="usecase-modal" aria-hidden="true"></div>
+
+  <!-- Pod Edit Modal (Lead Only) -->
+  <div id="pod-edit-modal" class="usecase-modal" aria-hidden="true"></div>
 
   <!-- Leaderboard Section -->
   <section id="leaderboard" class="leaderboard-section">
@@ -771,12 +801,15 @@
   <!-- Footer Brand -->
   <footer class="footer">
     <div class="container">
+      <p class="footer-cta"><a href="#join">Ready to plant your AI story? Join Botany &rarr;</a></p>
       <div class="footer-links">
         <a href="#join" class="footer-link">Join Botany</a>
         <span class="footer-sep">&bull;</span>
         <a href="#pods" class="footer-link">Pods</a>
         <span class="footer-sep">&bull;</span>
         <a href="#submit" class="footer-link">Submit Use Case</a>
+        <span class="footer-sep">&bull;</span>
+        <a href="resources.html" class="footer-link">Resource Library</a>
         <span class="footer-sep">&bull;</span>
         <a href="https://forms.office.com/Pages/DesignPageV2.aspx?subpage=design&token=be8eb83dcfa145979b8328f88b2d3e2f&id=OT154DkJbUmxKRmO3ZFv665NpcZfaztMvzHeQikuqhtUOEtPVTNGR084TUlON081VVNUREY0UUdYQiQlQCN0PWcu"
           target="_blank" rel="noopener" class="footer-link">MS Forms Intake</a>
@@ -785,16 +818,35 @@
         <span class="logo-symbol">&gt;</span>
         <span>Botany Group | Accenture &copy; 2025</span>
       </div>
-      <p class="footer-share-note">This site is fully static &mdash; share it as a folder, zip, or deploy to Netlify
-        with zero hosting cost.</p>
+      <p class="footer-share-note">Static site &mdash; zero hosting cost</p>
     </div>
   </footer>
 
   <!-- Use Case Detail Modal -->
   <div id="usecase-modal" class="usecase-modal" aria-hidden="true"></div>
 
+  <!-- Login Modal -->
+  <div id="login-modal" class="login-modal" aria-hidden="true">
+    <div class="login-backdrop"></div>
+    <div class="login-panel">
+      <button class="login-close" id="login-close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="login-logo">&gt;</div>
+      <h2 class="login-title">Welcome back</h2>
+      <p class="login-subtitle">Enter your name to access your personal dashboard</p>
+      <div class="login-input-wrap">
+        <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="login-search" class="login-input" placeholder="Search your name…" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="login-results" id="login-results"></div>
+      <p class="login-hint">Your name must match a submission in the Botany tracker</p>
+    </div>
+  </div>
+
   <!-- JavaScript -->
   <script type="module" src="/app.js"></script>
+  <script src="/feedback-widget.js"></script>
 </body>
 
 </html>

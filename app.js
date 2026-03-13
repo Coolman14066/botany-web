@@ -64,8 +64,8 @@ const CONFIG = {
 // SUPABASE CONFIG
 // ============================================
 // ⚠️  PASTE YOUR SUPABASE PROJECT URL AND ANON KEY BELOW
-const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';
+const SUPABASE_URL = 'https://pfpgnuuaueqpitfyfhko.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmcGdudXVhdWVxcGl0ZnlmaGtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMDM0MDMsImV4cCI6MjA4Nzc3OTQwM30.wDSbj24oklscbYUaZvhIIm6E2lD6gZrZ5K0PA9FozLA';
 let supabase = null;
 
 if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
@@ -78,6 +78,12 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
 let allData = [];
 let processedUsers = [];
 let toolStats = {};
+
+// Global profile navigation — used across pods, leaderboard, gallery
+function viewProfile(name) {
+  sessionStorage.setItem('botany-user', name);
+  window.location.href = 'dashboard.html';
+}
 let barrierStats = {};
 
 // ============================================
@@ -435,19 +441,39 @@ function animateCounter(elementId, target) {
 
   element.dataset.target = target;
 
-  let current = 0;
-  const increment = target / 60;
-  const duration = 2000;
-  const stepTime = duration / 60;
+  // Use IntersectionObserver to trigger count-up when stats become visible
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        countUp(element, target);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.5 });
 
-  const timer = setInterval(() => {
-    current += increment;
-    if (current >= target) {
-      current = target;
-      clearInterval(timer);
+  observer.observe(element);
+}
+
+function countUp(element, target) {
+  const duration = 1600;
+  const startTime = performance.now();
+
+  function easeOutQuart(t) {
+    return 1 - Math.pow(1 - t, 4);
+  }
+
+  function step(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const easedProgress = easeOutQuart(progress);
+    const current = Math.round(easedProgress * target);
+    element.textContent = current + (target > 50 ? '+' : '');
+    if (progress < 1) {
+      requestAnimationFrame(step);
     }
-    element.textContent = Math.round(current) + (target > 50 ? '+' : '');
-  }, stepTime);
+  }
+
+  requestAnimationFrame(step);
 }
 
 function renderPodium(users) {
@@ -462,10 +488,10 @@ function renderPodium(users) {
     const initials = getInitials(user.name);
 
     return `
-      <div class="podium-place ${position}">
+      <div class="podium-place ${position}" data-profile="${user.name}" style="cursor:pointer" title="View ${user.name}'s profile">
         <div class="podium-rank-label">${rankLabels[idx]}</div>
         <div class="podium-avatar">${initials}</div>
-        <div class="podium-name">${user.name}</div>
+        <div class="podium-name profile-link">${user.name}</div>
         <div class="podium-hours">${Math.round(user.totalHours)} hours saved</div>
         <span class="tier-badge ${user.tier.class}"><span class="tier-icon">${user.tier.icon}</span> ${user.tier.name}</span>
         <div class="podium-stand"><span class="podium-stand-rank">${idx + 1}</span></div>
@@ -487,12 +513,12 @@ function renderLeaderboard(users, startRank = 4) {
     const truncatedUseCase = mainUseCase.length > 50 ? mainUseCase.substring(0, 50) + '...' : mainUseCase;
 
     return `
-      <div class="leaderboard-card" data-user="${user.name}">
+      <div class="leaderboard-card" data-user="${user.name}" data-profile="${user.name}" style="cursor:pointer" title="View ${user.name}'s profile">
         <div class="rank">#${rank}</div>
         <div class="user-info">
           <div class="user-avatar">${initials}</div>
           <div class="user-details">
-            <div class="user-name">${user.name}</div>
+            <div class="user-name profile-link">${user.name}</div>
             <div class="user-usecase">${truncatedUseCase}</div>
           </div>
         </div>
@@ -535,7 +561,7 @@ function renderGallery(data) {
           ${recommends ? `<span class="recommend-badge">${ICONS.check} Recommended</span>` : ''}
         </div>
         <h3 class="usecase-title">${truncateText(useCase, 80)}</h3>
-        <p class="usecase-author">by ${name}</p>
+        <p class="usecase-author">by <span class="profile-link" data-profile="${name}" title="View ${name}'s profile">${name}</span></p>
         <p class="usecase-description">${truncateText(value, 150)}</p>
         <div class="usecase-footer">
           <div class="usecase-stats">
@@ -686,7 +712,7 @@ function openUseCaseModal(row) {
         ${recommends ? `<span class="recommend-badge modal-recommend">${ICONS.check} Recommended</span>` : ''}
       </div>
       <h2 class="modal-title">${useCase}</h2>
-      <p class="modal-author">by ${name}</p>
+      <p class="modal-author">by <span class="profile-link" data-profile="${name}" style="cursor:pointer;text-decoration:underline;text-decoration-color:rgba(161,0,255,0.4)" title="View ${name}'s profile">${name}</span></p>
 
       <div class="modal-stats-row">
         <div class="modal-stat">
@@ -793,58 +819,572 @@ function sortLeaderboard(sortBy) {
 }
 
 // ============================================
-// SCROLL ANIMATIONS
+// SCROLL ANIMATIONS (Premium Reveal System)
 // ============================================
 function setupScrollAnimations() {
-  const observer = new IntersectionObserver((entries) => {
+  // Reveal observer — adds 'revealed' class with staggered children
+  const revealObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
-        entry.target.classList.add('animate-in');
+        entry.target.classList.add('revealed');
+        const children = entry.target.querySelectorAll('.reveal');
+        children.forEach((child, i) => {
+          child.style.transitionDelay = `${i * 0.1}s`;
+          setTimeout(() => child.classList.add('revealed'), i * 100);
+        });
+        revealObserver.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.1 });
+  }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
 
-  document.querySelectorAll('section > .container').forEach(el => {
-    observer.observe(el);
+  document.querySelectorAll('section > .container, .section-header, .about-header, .about-pillars, .pods-grid, .podium, .leaderboard-list, .analytics-grid, .gallery-grid, .intake-form, .usecase-form').forEach(el => {
+    el.classList.add('reveal');
+    revealObserver.observe(el);
+  });
+
+  document.querySelectorAll('.pillar-card, .pod-card, .analytics-card, .usecase-card, .leaderboard-card, .stat-card').forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = `${Math.min(i * 0.08, 0.5)}s`;
+    revealObserver.observe(el);
+  });
+
+  // Header scroll effect
+  const header = document.querySelector('.header');
+  if (header) {
+    window.addEventListener('scroll', () => {
+      header.classList.toggle('scrolled', window.scrollY > 60);
+    }, { passive: true });
+  }
+
+  // Nav link active state
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+  if (sections.length && navLinks.length) {
+    const navObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          navLinks.forEach(link => {
+            link.classList.toggle('active', link.getAttribute('href') === `#${id}`);
+          });
+        }
+      });
+    }, { threshold: 0.3 });
+    sections.forEach(s => navObserver.observe(s));
+  }
+
+  // ---- CARD SPOTLIGHT (mouse-follow glow) ----
+  setupCardSpotlight();
+
+  // ---- BAR CHART animate-in on scroll ----
+  setupBarChartAnimation();
+}
+
+// ============================================
+// CARD SPOTLIGHT (Linear-style mouse glow)
+// ============================================
+function setupCardSpotlight() {
+  // Each card type has its own ::after pseudo-element for the spotlight
+  // We just need to set the CSS custom properties on mousemove
+  document.querySelectorAll('.pillar-card, .pod-card, .analytics-card, .usecase-card').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+      card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    });
   });
 }
 
 // ============================================
-// POD RENDERING
+// BAR CHART SCROLL ANIMATION
 // ============================================
+function setupBarChartAnimation() {
+  const barObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const fills = entry.target.querySelectorAll('.bar-fill');
+        fills.forEach(fill => {
+          const targetWidth = fill.style.width;
+          fill.style.width = '0%';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              fill.style.width = targetWidth;
+            });
+          });
+        });
+        barObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.2 });
+
+  document.querySelectorAll('.bar-chart').forEach(chart => barObserver.observe(chart));
+}
+
+// ============================================
+// POD RENDERING (LIVE — Supabase-powered)
+// ============================================
+
+// Cache for Supabase team data and posts
+let supabaseTeams = [];
+let supabasePosts = {};  // keyed by team_id
+let supabaseMembers = {}; // keyed by team_id -> [{member_name, member_role}]
+let podsDataLoaded = false;
+let currentExpandedPod = null;
+
+// Load teams, members, and posts from Supabase
+async function loadLivePodData() {
+  if (!supabase || podsDataLoaded) return;
+  try {
+    // Load teams
+    const { data: teams, error: tErr } = await supabase
+      .from('teams').select('*').order('phase', { ascending: false }).order('name');
+    if (tErr) throw tErr;
+    supabaseTeams = teams || [];
+
+    // Load all team members
+    const { data: members, error: mErr } = await supabase
+      .from('team_members').select('*');
+    if (mErr) throw mErr;
+    (members || []).forEach(m => {
+      if (!supabaseMembers[m.team_id]) supabaseMembers[m.team_id] = [];
+      supabaseMembers[m.team_id].push(m);
+    });
+
+    // Load all pod posts
+    const { data: posts, error: pErr } = await supabase
+      .from('pod_posts').select('*').order('created_at', { ascending: false });
+    if (pErr) throw pErr;
+    (posts || []).forEach(p => {
+      if (!supabasePosts[p.team_id]) supabasePosts[p.team_id] = [];
+      supabasePosts[p.team_id].push(p);
+    });
+
+    podsDataLoaded = true;
+    console.log(`Loaded ${supabaseTeams.length} teams, ${members?.length || 0} members, ${posts?.length || 0} posts from Supabase`);
+  } catch (err) {
+    console.warn('Could not load live pod data from Supabase:', err);
+  }
+}
+
+// Check logged-in user's role for a specific pod (by team_id or pod object)
+// Global admins can edit/post to ALL pods
+const POD_GLOBAL_ADMINS = ['katie lux', 'winston blythe'];
+
+function getUserPodRole(pod) {
+  const currentUser = sessionStorage.getItem('botany-user');
+  if (!currentUser) return null;
+  const lower = currentUser.toLowerCase().trim();
+
+  // Global admins get lead access everywhere
+  if (POD_GLOBAL_ADMINS.includes(lower)) return 'lead';
+
+  // Check hardcoded pod data first (works w/o Supabase)
+  if (pod.leads && pod.leads.some(n => n.toLowerCase().trim() === lower)) return 'lead';
+  if (pod.members && pod.members.some(n => n.toLowerCase().trim() === lower)) return 'member';
+
+  // Also check Supabase team_members if available
+  if (pod._teamId && supabaseMembers[pod._teamId]) {
+    const match = supabaseMembers[pod._teamId].find(m => 
+      m.member_name && m.member_name.toLowerCase().trim() === lower
+    );
+    if (match) return match.member_role || 'member';
+  }
+  return null;
+}
+
+// Map hardcoded pod to Supabase team ID
+function getTeamIdForPod(pod) {
+  if (pod._teamId) return pod._teamId;
+  const match = supabaseTeams.find(t => 
+    t.name === pod.name && t.phase === (pod._phase || 3)
+  );
+  return match ? match.id : null;
+}
+
+// Get posts for a pod
+function getPostsForPod(teamId) {
+  return supabasePosts[teamId] || [];
+}
+
+// Render time-ago string
+function timeAgo(dateStr) {
+  const now = new Date();
+  const d = new Date(dateStr);
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function renderPods(phase) {
   const grid = document.getElementById('pods-grid');
   if (!grid) return;
 
   const pods = phase === 3 ? PHASE_3_PODS : PHASE_2_PODS;
+  const currentUser = sessionStorage.getItem('botany-user');
 
   grid.innerHTML = pods.map((pod, idx) => {
+    // Attach phase and look up team ID
+    pod._phase = phase;
+    pod._teamId = getTeamIdForPod(pod);
+    const teamId = pod._teamId;
+    const role = getUserPodRole(pod);
+    const posts = teamId ? getPostsForPod(teamId) : [];
+    const postCount = posts.length;
+
     const leadAvatars = pod.leads.map(name => {
       const initials = getInitials(name);
-      return `<div class="pod-lead"><div class="pod-lead-avatar">${initials}</div><span>${name}</span></div>`;
+      return `<div class="pod-lead profile-link" data-profile="${name}" title="View ${name}'s profile" style="cursor:pointer"><div class="pod-lead-avatar">${initials}</div><span>${name}</span></div>`;
     }).join('');
 
     const memberChips = pod.members.map(name =>
-      `<span class="pod-member-chip">${name}</span>`
+      `<span class="pod-member-chip profile-link" data-profile="${name}" title="View ${name}'s profile" style="cursor:pointer">${name}</span>`
     ).join('');
 
     const podLabel = typeof pod.id === 'number' ? `Pod #${pod.id}` : (pod.id === 'fw' ? '\ud83d\udc41\ufe0f' : '\ud83c\udf31');
     const hasMembers = pod.leads.length > 0 || pod.members.length > 0;
     const emptyState = !hasMembers ? '<p class="pod-empty">Open for sign-ups!</p>' : '';
 
+    // Build action buttons
+    let actionsHtml = '';
+    if (currentUser && role) {
+      actionsHtml += `<div class="pod-actions">`;
+      actionsHtml += `
+        <button class="pod-action-btn pod-share-btn" data-team-id="${teamId}" data-pod-name="${pod.name}" title="Share a link with your pod">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Share a Link</span>
+        </button>`;
+      if (role === 'lead') {
+        actionsHtml += `
+          <button class="pod-action-btn pod-edit-btn" data-team-id="${teamId}" data-pod-name="${pod.name}" data-pod-desc="${pod.description.replace(/"/g, '&quot;')}" title="Edit pod information">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>Edit Pod</span>
+          </button>`;
+      }
+      actionsHtml += `</div>`;
+    }
+
+    // Build activity feed (recent posts)
+    let feedHtml = '';
+    if (posts.length > 0) {
+      const topPosts = posts.slice(0, 3); // show last 3
+      feedHtml = `
+        <div class="pod-feed">
+          <div class="pod-feed-header">
+            <span class="pod-section-label">Recent Activity</span>
+            <span class="pod-post-count">${postCount} post${postCount !== 1 ? 's' : ''}</span>
+          </div>
+          ${topPosts.map(p => `
+            <div class="pod-post-item">
+              <div class="pod-post-icon">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </div>
+              <div class="pod-post-body">
+                <div class="pod-post-title">${p.url ? `<a href="${p.url}" target="_blank" rel="noopener">${p.title}</a>` : p.title}</div>
+                <div class="pod-post-meta">
+                  <span>${p.author_name}</span>
+                  <span class="pod-post-dot">·</span>
+                  <span>${timeAgo(p.created_at)}</span>
+                </div>
+                ${p.description ? `<div class="pod-post-desc">${p.description}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+          ${postCount > 3 ? `<button class="pod-view-all-btn" data-team-id="${teamId}" data-pod-name="${pod.name}">View all ${postCount} posts</button>` : ''}
+        </div>`;
+    }
+
+    // Live indicator
+    const liveIndicator = postCount > 0
+      ? `<span class="pod-live-badge"><span class="pod-live-dot"></span>${postCount}</span>`
+      : '';
+
     return `
-      <div class="pod-card" style="animation-delay: ${idx * 0.05}s">
+      <div class="pod-card ${role ? 'pod-card-member' : ''}" style="animation-delay: ${idx * 0.05}s" data-team-id="${teamId}">
         <div class="pod-card-header">
-          <span class="pod-number">${podLabel}</span>
+          <span class="pod-number">${podLabel}${liveIndicator}</span>
           <h3 class="pod-name">${pod.name}</h3>
         </div>
         <p class="pod-description">${pod.description}</p>
         ${pod.leads.length > 0 ? `<div class="pod-leads-section"><span class="pod-section-label">Leads</span><div class="pod-leads-row">${leadAvatars}</div></div>` : ''}
         ${pod.members.length > 0 ? `<div class="pod-members-section"><span class="pod-section-label">Members</span><div class="pod-members-row">${memberChips}</div></div>` : ''}
         ${emptyState}
+        ${feedHtml}
+        ${actionsHtml}
       </div>
     `;
   }).join('');
+
+  // Attach event listeners for pod actions
+  setupPodActionListeners();
+}
+
+function setupPodActionListeners() {
+  // Share a Link buttons
+  document.querySelectorAll('.pod-share-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openPodPostModal(btn.dataset.teamId, btn.dataset.podName);
+    });
+  });
+
+  // Edit Pod buttons
+  document.querySelectorAll('.pod-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openPodEditModal(btn.dataset.teamId, btn.dataset.podName, btn.dataset.podDesc);
+    });
+  });
+
+  // View All posts buttons
+  document.querySelectorAll('.pod-view-all-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openAllPostsModal(btn.dataset.teamId, btn.dataset.podName);
+    });
+  });
+}
+
+// ---- Pod Post Modal (Share a Link) ----
+function openPodPostModal(teamId, podName) {
+  const modal = document.getElementById('pod-post-modal');
+  if (!modal) return;
+  const currentUser = sessionStorage.getItem('botany-user') || '';
+
+  modal.innerHTML = `
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">${ICONS.close}</button>
+      <h2 class="modal-title">Share a Link</h2>
+      <p class="modal-author">Post a resource or link to <strong>${podName}</strong></p>
+      <form id="pod-post-form" class="pod-idea-form">
+        <div class="form-grid">
+          <div class="form-group form-full">
+            <label for="post-title">Title <span class="required">*</span></label>
+            <input type="text" id="post-title" required placeholder="e.g. Great article on AI project management">
+          </div>
+          <div class="form-group form-full">
+            <label for="post-url">URL</label>
+            <input type="url" id="post-url" placeholder="https://...">
+          </div>
+          <div class="form-group form-full">
+            <label for="post-description">Description</label>
+            <textarea id="post-description" rows="3" placeholder="Why is this useful for the pod?"></textarea>
+          </div>
+          <div class="form-group form-full">
+            <label>Posting as</label>
+            <div class="post-author-display">
+              <div class="pod-lead-avatar" style="width:28px;height:28px;font-size:0.65rem">${getInitials(currentUser)}</div>
+              <span>${currentUser}</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-submit">
+            ${ICONS.send}
+            <span>Post to Pod</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  modal.querySelector('.modal-backdrop').addEventListener('click', () => closePodPostModal());
+  modal.querySelector('.modal-close').addEventListener('click', () => closePodPostModal());
+
+  modal.querySelector('#pod-post-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('post-title').value.trim();
+    const url = document.getElementById('post-url').value.trim();
+    const description = document.getElementById('post-description').value.trim();
+    if (!title) return;
+
+    const payload = {
+      team_id: teamId,
+      author_name: currentUser,
+      title,
+      url: url || null,
+      description: description || ''
+    };
+
+    try {
+      if (supabase) {
+        const { error } = await supabase.from('pod_posts').insert([payload]);
+        if (error) throw error;
+      }
+
+      // Add to local cache
+      if (!supabasePosts[teamId]) supabasePosts[teamId] = [];
+      supabasePosts[teamId].unshift({ ...payload, created_at: new Date().toISOString() });
+
+      // Show success
+      modal.querySelector('.modal-content').innerHTML = `
+        <div class="form-success" style="display:flex">
+          <div class="success-icon">${ICONS.check}</div>
+          <h3>Link Shared!</h3>
+          <p>Your post has been added to ${podName}.</p>
+        </div>
+      `;
+
+      // Re-render pods and close
+      setTimeout(() => {
+        closePodPostModal();
+        const activePhaseTab = document.querySelector('#pod-phase-tabs .filter-tab.active');
+        const phase = activePhaseTab ? parseInt(activePhaseTab.dataset.phase) : 3;
+        renderPods(phase);
+        setupScrollAnimations();
+      }, 1500);
+    } catch (err) {
+      console.error('Post submission error:', err);
+      alert('Error sharing link. Please try again.');
+    }
+  });
+}
+
+function closePodPostModal() {
+  const modal = document.getElementById('pod-post-modal');
+  if (modal) { modal.classList.remove('active'); document.body.style.overflow = ''; }
+}
+
+// ---- Pod Edit Modal (Lead Only) ----
+function openPodEditModal(teamId, podName, podDesc) {
+  const modal = document.getElementById('pod-edit-modal');
+  if (!modal) return;
+
+  modal.innerHTML = `
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" aria-label="Close">${ICONS.close}</button>
+      <h2 class="modal-title">Edit Pod</h2>
+      <p class="modal-author">Update information for <strong>${podName}</strong></p>
+      <form id="pod-edit-form" class="pod-idea-form">
+        <div class="form-grid">
+          <div class="form-group form-full">
+            <label for="edit-pod-name">Pod Name <span class="required">*</span></label>
+            <input type="text" id="edit-pod-name" required value="${podName}">
+          </div>
+          <div class="form-group form-full">
+            <label for="edit-pod-desc">Description <span class="required">*</span></label>
+            <textarea id="edit-pod-desc" rows="4" required>${podDesc}</textarea>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-submit">
+            ${ICONS.check}
+            <span>Save Changes</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  modal.querySelector('.modal-backdrop').addEventListener('click', () => closePodEditModal());
+  modal.querySelector('.modal-close').addEventListener('click', () => closePodEditModal());
+
+  modal.querySelector('#pod-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newName = document.getElementById('edit-pod-name').value.trim();
+    const newDesc = document.getElementById('edit-pod-desc').value.trim();
+    if (!newName || !newDesc) return;
+
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('teams')
+          .update({ name: newName, description: newDesc })
+          .eq('id', teamId);
+        if (error) throw error;
+      }
+
+      // Update local hardcoded data too
+      const allPods = [...PHASE_3_PODS, ...PHASE_2_PODS];
+      const localPod = allPods.find(p => p._teamId === teamId);
+      if (localPod) {
+        localPod.name = newName;
+        localPod.description = newDesc;
+      }
+
+      // Update Supabase cache
+      const cachedTeam = supabaseTeams.find(t => t.id === teamId);
+      if (cachedTeam) {
+        cachedTeam.name = newName;
+        cachedTeam.description = newDesc;
+      }
+
+      // Show success
+      modal.querySelector('.modal-content').innerHTML = `
+        <div class="form-success" style="display:flex">
+          <div class="success-icon">${ICONS.check}</div>
+          <h3>Pod Updated!</h3>
+          <p>${newName} has been updated successfully.</p>
+        </div>
+      `;
+
+      setTimeout(() => {
+        closePodEditModal();
+        const activePhaseTab = document.querySelector('#pod-phase-tabs .filter-tab.active');
+        const phase = activePhaseTab ? parseInt(activePhaseTab.dataset.phase) : 3;
+        renderPods(phase);
+        setupScrollAnimations();
+      }, 1500);
+    } catch (err) {
+      console.error('Pod edit error:', err);
+      alert('Error updating pod. Please try again.');
+    }
+  });
+}
+
+function closePodEditModal() {
+  const modal = document.getElementById('pod-edit-modal');
+  if (modal) { modal.classList.remove('active'); document.body.style.overflow = ''; }
+}
+
+// ---- View All Posts Modal ----
+function openAllPostsModal(teamId, podName) {
+  const modal = document.getElementById('pod-post-modal');
+  if (!modal) return;
+  const posts = getPostsForPod(teamId);
+
+  modal.innerHTML = `
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width:720px">
+      <button class="modal-close" aria-label="Close">${ICONS.close}</button>
+      <h2 class="modal-title">${podName} — Activity</h2>
+      <p class="modal-author">${posts.length} post${posts.length !== 1 ? 's' : ''} shared by pod members</p>
+      <div class="pod-all-posts">
+        ${posts.map(p => `
+          <div class="pod-post-item pod-post-item-full">
+            <div class="pod-post-icon">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
+            <div class="pod-post-body">
+              <div class="pod-post-title">${p.url ? `<a href="${p.url}" target="_blank" rel="noopener">${p.title}</a>` : p.title}</div>
+              <div class="pod-post-meta">
+                <span>${p.author_name}</span>
+                <span class="pod-post-dot">·</span>
+                <span>${timeAgo(p.created_at)}</span>
+              </div>
+              ${p.description ? `<div class="pod-post-desc">${p.description}</div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+        ${posts.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:2rem">No posts yet. Be the first to share!</p>' : ''}
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+  modal.querySelector('.modal-backdrop').addEventListener('click', () => closePodPostModal());
+  modal.querySelector('.modal-close').addEventListener('click', () => closePodPostModal());
 }
 
 function setupPodPhaseToggle() {
@@ -907,18 +1447,24 @@ function setupPodIdeaModal() {
 
     modal.querySelector('#pod-idea-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const payload = {
-        name: document.getElementById('idea-name').value.trim(),
-        email: document.getElementById('idea-email').value.trim(),
-        idea_title: document.getElementById('idea-title').value.trim(),
-        idea_description: document.getElementById('idea-desc').value.trim()
-      };
+      const ideaName = document.getElementById('idea-name').value.trim();
+      const ideaEmail = document.getElementById('idea-email').value.trim();
+      const ideaTitle = document.getElementById('idea-title').value.trim();
+      const ideaDesc = document.getElementById('idea-desc').value.trim();
 
-      if (!payload.name || !payload.email || !payload.idea_title) return;
+      if (!ideaName || !ideaEmail || !ideaTitle) return;
+
+      // Build payload that matches the pod_ideas table schema: { idea }
+      const ideaText = `[${ideaName} / ${ideaEmail}] ${ideaTitle}${ideaDesc ? ': ' + ideaDesc : ''}`;
+      const payload = { idea: ideaText };
 
       try {
         if (supabase) {
-          await supabase.from('pod_ideas').insert([payload]);
+          const { error } = await supabase.from('pod_ideas').insert([payload]);
+          if (error) {
+            console.error('Pod idea insert error:', error);
+            throw error;
+          }
         } else {
           console.log('Pod idea submitted (no Supabase):', payload);
           await new Promise(r => setTimeout(r, 500));
@@ -1019,7 +1565,7 @@ function setupIntakeForm() {
       name: document.getElementById('intake-name').value.trim(),
       email: document.getElementById('intake-email').value.trim(),
       office_location: document.getElementById('intake-location').value,
-      current_role: form.querySelector('input[name="role"]:checked')?.value || '',
+      intake_role: form.querySelector('input[name="role"]:checked')?.value || '',
       ai_comfort: parseInt(document.getElementById('intake-comfort').value) || null,
       ai_relationship: form.querySelector('input[name="ai_relationship"]:checked')?.value || '',
       colleagues_introduced: parseInt(document.getElementById('intake-colleagues').value) || 0,
@@ -1057,6 +1603,9 @@ function setupIntakeForm() {
         await new Promise(r => setTimeout(r, 800));
       }
 
+      // Always persist locally for dashboard access
+      saveSubmissionToLocal('intake', payload);
+
       // Success
       form.querySelectorAll('.intake-step').forEach(s => s.classList.remove('active'));
       document.getElementById('intake-success').style.display = 'flex';
@@ -1071,26 +1620,180 @@ function setupIntakeForm() {
 }
 
 // ============================================
+// LOGIN MODAL
+// ============================================
+function setupLoginModal() {
+  const modal = document.getElementById('login-modal');
+  const btn = document.getElementById('login-btn');
+  const btnText = document.getElementById('login-btn-text');
+  const closeBtn = document.getElementById('login-close');
+  const backdrop = modal?.querySelector('.login-backdrop');
+  const searchInput = document.getElementById('login-search');
+  const resultsEl = document.getElementById('login-results');
+
+  if (!modal || !btn) return;
+
+  // Check if already logged in
+  const currentUser = sessionStorage.getItem('botany-user');
+  if (currentUser) {
+    btnText.textContent = 'My Dashboard';
+    btn.addEventListener('click', () => {
+      window.location.href = 'dashboard.html';
+    });
+    return;
+  }
+
+  // Open modal
+  btn.addEventListener('click', () => {
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => searchInput?.focus(), 300);
+  });
+
+  // Close modal
+  function closeModal() {
+    modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    if (searchInput) searchInput.value = '';
+    if (resultsEl) resultsEl.innerHTML = '';
+  }
+  closeBtn?.addEventListener('click', closeModal);
+  backdrop?.addEventListener('click', closeModal);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+  });
+
+  // Search and autocomplete — searches BOTH CSV users AND pod members
+  // Build a combined search pool so everyone can log in
+  function buildSearchPool() {
+    const pool = new Map();
+
+    // Add all CSV/processed users with their full data
+    processedUsers.forEach(u => {
+      pool.set(u.name.toLowerCase().trim(), {
+        name: u.name,
+        tier: u.tier.name,
+        totalHours: u.totalHours,
+        useCaseCount: u.useCaseCount,
+        source: 'data'
+      });
+    });
+
+    // Add all pod members who aren't already in the pool
+    const allPods = [...PHASE_3_PODS, ...PHASE_2_PODS];
+    allPods.forEach(pod => {
+      [...pod.leads, ...pod.members].forEach(name => {
+        const key = name.toLowerCase().trim();
+        if (!pool.has(key)) {
+          pool.set(key, {
+            name: name,
+            tier: 'Planted',
+            totalHours: 0,
+            useCaseCount: 0,
+            source: 'pod'
+          });
+        }
+      });
+    });
+
+    return Array.from(pool.values());
+  }
+
+  const searchPool = buildSearchPool();
+
+  let debounceTimer;
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const query = searchInput.value.trim().toLowerCase();
+      if (query.length < 2) {
+        resultsEl.innerHTML = '';
+        return;
+      }
+      const matches = searchPool.filter(u =>
+        u.name.toLowerCase().includes(query)
+      ).slice(0, 8);
+
+      if (matches.length === 0) {
+        resultsEl.innerHTML = '<p class="login-no-results">No matching names found</p>';
+        return;
+      }
+
+      resultsEl.innerHTML = matches.map(user => {
+        const initials = getInitials(user.name);
+        const subtitle = user.source === 'pod'
+          ? `${user.tier} · Pod member`
+          : `${user.tier} · ${user.totalHours}h saved · ${user.useCaseCount} use cases`;
+        return `
+          <div class="login-result-item" data-name="${user.name}">
+            <div class="login-result-avatar">${initials}</div>
+            <div>
+              <div class="login-result-name">${user.name}</div>
+              <div class="login-result-tier">${subtitle}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Click handler for results
+      resultsEl.querySelectorAll('.login-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const name = item.dataset.name;
+          sessionStorage.setItem('botany-user', name);
+          window.location.href = 'dashboard.html';
+        });
+      });
+    }, 200);
+  });
+}
+
+// ============================================
+// PROFILE LINKS (Global delegated click handler)
+// ============================================
+function setupProfileLinks() {
+  // Single delegated listener on body catches ALL profile-link clicks
+  document.body.addEventListener('click', (e) => {
+    const profileEl = e.target.closest('[data-profile]');
+    if (profileEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      const name = profileEl.dataset.profile;
+      if (name) viewProfile(name);
+    }
+  });
+}
+
+// ============================================
+// LOCALSTORAGE SUBMISSIONS (Persist form data)
+// ============================================
+function saveSubmissionToLocal(type, payload) {
+  const key = `botany-${type}-submissions`;
+  const existing = JSON.parse(localStorage.getItem(key) || '[]');
+  payload.submittedAt = new Date().toISOString();
+  existing.push(payload);
+  localStorage.setItem(key, JSON.stringify(existing));
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 async function init() {
   try {
-    // Load and process data
     allData = await loadCSVData();
     processedUsers = processData(allData);
-
-    // Sort by hours saved (default)
     processedUsers.sort((a, b) => b.totalHours - a.totalHours);
 
-    // Render all components
     renderStats(processedUsers, allData);
-    renderPods(3); // Phase 3 by default
+
+    // Load live pod data from Supabase before rendering pods
+    await loadLivePodData();
+    renderPods(3);
+
     renderPodium(processedUsers);
     renderLeaderboard(processedUsers);
     renderGallery(allData);
     renderAnalytics(allData);
 
-    // Setup interactions
     setupLeaderboardSorting();
     setupScrollAnimations();
     setupSubmissionForm();
@@ -1098,6 +1801,8 @@ async function init() {
     setupPodPhaseToggle();
     setupPodIdeaModal();
     setupIntakeForm();
+    setupLoginModal();
+    setupProfileLinks();
 
     console.log('Botany AI Showcase initialized successfully!');
     console.log(`Loaded ${allData.length} use cases from ${processedUsers.length} innovators`);
@@ -1198,19 +1903,43 @@ function setupSubmissionForm() {
     submitBtn.querySelector('span').textContent = 'Sending...';
 
     try {
+      // 1. Persist to Supabase (primary storage)
+      if (supabase) {
+        const dbPayload = {
+          name: payload.name,
+          email: payload.email,
+          use_case: payload.useCase,
+          tools: payload.tools,
+          hours_saved: parseFloat(payload.hours) || 0,
+          value_created: payload.value,
+          challenges: payload.challenges,
+          comfort_level: parseInt(payload.comfort) || null,
+          barrier: payload.barrier,
+          recommends: payload.recommend === 'Yes',
+          used_in_client_work: payload.clientWork === 'Yes',
+          status: 'approved'
+        };
+        const { error: dbError } = await supabase.from('use_case_submissions').insert([dbPayload]);
+        if (dbError) {
+          console.error('Supabase insert error:', dbError);
+          // Continue — still save to localStorage as backup
+        } else {
+          console.log('Use case saved to Supabase successfully');
+        }
+      }
+
+      // 2. Also send to webhook if configured
       if (WEBHOOK_URL) {
         const response = await fetch(WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-
-        if (!response.ok) throw new Error('Webhook response not ok');
-      } else {
-        // No webhook configured — simulate a short delay
-        console.log('No WEBHOOK_URL configured. Form data:', payload);
-        await new Promise(r => setTimeout(r, 800));
+        if (!response.ok) console.warn('Webhook response not ok');
       }
+
+      // 3. Always persist to localStorage for immediate dashboard access
+      saveSubmissionToLocal('usecase', payload);
 
       // Success
       form.querySelector('.form-grid').style.display = 'none';

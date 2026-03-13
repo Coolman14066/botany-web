@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Botany AI Innovators — Access</title>
+  <meta name="description" content="Enter the passphrase to access Botany AI Innovators — Accenture's peer-driven AI upskilling community.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --bg:#0a0514;
+      --purple-vivid:#a100ff;
+      --purple-mid:#7c3aed;
+      --purple-light:#c084fc;
+      --text-primary:rgba(255,255,255,0.95);
+      --text-secondary:rgba(255,255,255,0.6);
+      --text-muted:rgba(255,255,255,0.35);
+    }
+
+    body {
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:var(--bg); color:var(--text-primary);
+      font-family:'Inter', -apple-system, sans-serif;
+      overflow:hidden; position:relative;
+    }
+
+    /* Ambient orbs */
+    .orb {
+      position:fixed; border-radius:50%; pointer-events:none;
+      filter:blur(120px); z-index:0;
+    }
+    .orb-1 {
+      width:600px; height:600px; top:-20%; left:-10%;
+      background:radial-gradient(circle, rgba(161,0,255,0.2), transparent 70%);
+      animation:drift1 20s ease-in-out infinite;
+    }
+    .orb-2 {
+      width:500px; height:500px; bottom:-15%; right:-10%;
+      background:radial-gradient(circle, rgba(124,58,237,0.15), transparent 70%);
+      animation:drift2 25s ease-in-out infinite;
+    }
+    .orb-3 {
+      width:400px; height:400px; top:40%; left:50%;
+      background:radial-gradient(circle, rgba(192,132,252,0.1), transparent 70%);
+      animation:drift3 30s ease-in-out infinite;
+    }
+
+    @keyframes drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+    @keyframes drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+    @keyframes drift3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,-50px)} }
+
+    /* Gate container */
+    .gate {
+      position:relative; z-index:1;
+      display:flex; flex-direction:column; align-items:center;
+      text-align:center; padding:2rem;
+      max-width:480px; width:100%;
+    }
+
+    /* Logo */
+    .gate-logo {
+      font-family:'Space Grotesk', sans-serif; font-size:5rem; font-weight:700;
+      color:var(--purple-vivid); margin-bottom:1rem;
+      text-shadow:0 0 60px rgba(161,0,255,0.4), 0 0 120px rgba(161,0,255,0.15);
+      animation:pulseGlow 3s ease-in-out infinite;
+    }
+    @keyframes pulseGlow {
+      0%,100%{text-shadow:0 0 60px rgba(161,0,255,0.3), 0 0 120px rgba(161,0,255,0.1)}
+      50%{text-shadow:0 0 80px rgba(161,0,255,0.5), 0 0 160px rgba(161,0,255,0.2)}
+    }
+
+    /* Title */
+    .gate-title {
+      font-family:'Space Grotesk', sans-serif; font-size:1.8rem; font-weight:700;
+      letter-spacing:0.12em; text-transform:uppercase; margin-bottom:0.5rem;
+      background:linear-gradient(135deg, #fff 0%, var(--purple-light) 50%, #fff 100%);
+      background-size:200% auto;
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      animation:shimmer 4s linear infinite;
+    }
+    @keyframes shimmer { 0%{background-position:200% center} 100%{background-position:-200% center} }
+
+    .gate-subtitle {
+      font-size:0.95rem; color:var(--text-secondary); font-weight:300;
+      margin-bottom:3rem; letter-spacing:0.02em;
+    }
+
+    /* Input group */
+    .gate-input-group {
+      width:100%; position:relative; margin-bottom:1rem;
+    }
+    .gate-input-icon {
+      position:absolute; left:1.2rem; top:50%; transform:translateY(-50%);
+      width:20px; height:20px; color:var(--text-muted);
+      transition:color 0.3s;
+    }
+    .gate-input {
+      width:100%; padding:1rem 1.2rem 1rem 3.2rem;
+      background:rgba(161,0,255,0.04); border:1px solid rgba(161,0,255,0.15);
+      border-radius:14px; font-family:'Inter', sans-serif; font-size:1rem;
+      color:var(--text-primary); outline:none;
+      transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      -webkit-text-security:disc;
+    }
+    .gate-input::placeholder { color:var(--text-muted); }
+    .gate-input:focus {
+      border-color:rgba(161,0,255,0.5);
+      box-shadow:0 0 0 4px rgba(161,0,255,0.1), 0 0 30px rgba(161,0,255,0.08);
+      background:rgba(161,0,255,0.06);
+    }
+    .gate-input:focus ~ .gate-input-icon { color:var(--purple-light); }
+
+    /* Enter button */
+    .gate-btn {
+      width:100%; padding:1rem;
+      background:linear-gradient(135deg, var(--purple-vivid), var(--purple-mid));
+      border:none; border-radius:14px; color:#fff;
+      font-family:'Space Grotesk', sans-serif; font-size:1rem; font-weight:600;
+      letter-spacing:0.04em; cursor:pointer;
+      transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:0 0 20px rgba(161,0,255,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+      position:relative; overflow:hidden;
+    }
+    .gate-btn:hover {
+      transform:translateY(-2px);
+      box-shadow:0 0 40px rgba(161,0,255,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+    .gate-btn:active { transform:translateY(0); }
+    .gate-btn::after {
+      content:''; position:absolute; top:0; left:-100%; width:100%; height:100%;
+      background:linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition:left 0.5s;
+    }
+    .gate-btn:hover::after { left:100%; }
+
+    /* Error message */
+    .gate-error {
+      font-size:0.85rem; color:#ef4444; margin-top:0.75rem;
+      opacity:0; transition:opacity 0.3s; height:1.2rem;
+    }
+    .gate-error.visible { opacity:1; }
+
+    /* Hint */
+    .gate-hint {
+      font-size:0.75rem; color:var(--text-muted); margin-top:2rem;
+      font-style:italic;
+    }
+
+    /* Shake animation */
+    @keyframes shake {
+      0%,100%{transform:translateX(0)} 15%{transform:translateX(-8px)}
+      30%{transform:translateX(8px)} 45%{transform:translateX(-6px)}
+      60%{transform:translateX(6px)} 75%{transform:translateX(-3px)}
+      90%{transform:translateX(3px)}
+    }
+    .shake { animation:shake 0.5s ease-in-out; }
+
+    /* Entrance animation */
+    .gate-fade {
+      opacity:0; transform:translateY(20px);
+      animation:fadeUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    @keyframes fadeUp { to{opacity:1; transform:translateY(0)} }
+    .gate-fade-1 { animation-delay:0.1s; }
+    .gate-fade-2 { animation-delay:0.3s; }
+    .gate-fade-3 { animation-delay:0.5s; }
+    .gate-fade-4 { animation-delay:0.7s; }
+    .gate-fade-5 { animation-delay:0.9s; }
+
+    /* Success state */
+    .gate.success .gate-input-group,
+    .gate.success .gate-btn,
+    .gate.success .gate-hint,
+    .gate.success .gate-error { opacity:0; transition:opacity 0.3s; pointer-events:none; }
+    .gate.success .gate-logo { animation:pulseGlow 0.5s ease-in-out infinite; }
+
+    .gate-success-msg {
+      font-size:1rem; color:var(--purple-light); font-weight:500;
+      opacity:0; transition:opacity 0.5s 0.3s; position:absolute; bottom:2rem;
+    }
+    .gate.success .gate-success-msg { opacity:1; }
+
+    @media (max-width:480px) {
+      .gate-logo { font-size:4rem; }
+      .gate-title { font-size:1.3rem; }
+      .gate { padding:1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="gate" id="gate">
+    <div class="gate-logo gate-fade gate-fade-1">&gt;</div>
+    <h1 class="gate-title gate-fade gate-fade-2">Botany AI Innovators</h1>
+    <p class="gate-subtitle gate-fade gate-fade-3">Cultivating the future with artificial intelligence</p>
+
+    <div class="gate-input-group gate-fade gate-fade-4">
+      <svg class="gate-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22c4-4 8-7.5 8-12a8 8 0 1 0-16 0c0 4.5 4 8 8 12z"/>
+        <path d="M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+      </svg>
+      <input type="text" class="gate-input" id="gate-password" placeholder="Enter the passphrase…" autocomplete="off" spellcheck="false">
+    </div>
+
+    <button class="gate-btn gate-fade gate-fade-4" id="gate-btn">Enter Botany</button>
+
+    <p class="gate-error" id="gate-error">Incorrect passphrase — try again</p>
+
+    <p class="gate-hint gate-fade gate-fade-5">Ask your pod lead for access</p>
+
+    <p class="gate-success-msg">Welcome to the garden ✦</p>
+  </div>
+
+  <script>
+    const PASSPHRASE = 'deeproots2025';
+
+    // If already authenticated, go straight to landing
+    if (sessionStorage.getItem('botany-gate') === 'true') {
+      window.location.href = 'index.html';
+    }
+
+    const input = document.getElementById('gate-password');
+    const btn = document.getElementById('gate-btn');
+    const error = document.getElementById('gate-error');
+    const gate = document.getElementById('gate');
+
+    function attemptEntry() {
+      const value = input.value.trim().toLowerCase();
+      if (value === PASSPHRASE) {
+        // Success
+        sessionStorage.setItem('botany-gate', 'true');
+        gate.classList.add('success');
+        setTimeout(() => {
+          window.location.href = 'index.html';
+        }, 1200);
+      } else {
+        // Failure
+        error.classList.add('visible');
+        input.classList.add('shake');
+        input.style.borderColor = 'rgba(239,68,68,0.4)';
+        setTimeout(() => {
+          input.classList.remove('shake');
+          input.style.borderColor = '';
+        }, 600);
+        setTimeout(() => {
+          error.classList.remove('visible');
+        }, 3000);
+      }
+    }
+
+    btn.addEventListener('click', attemptEntry);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') attemptEntry();
+    });
+
+    // Auto-focus the input
+    setTimeout(() => input.focus(), 1000);
+  </script>
+</body>
+</html>

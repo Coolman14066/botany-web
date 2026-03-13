@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Dashboard — Botany AI Innovators</title>
+  <meta name="description" content="Your personal Botany AI dashboard — track your use cases, hours saved, tier progression, and pod assignments.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <link rel="stylesheet" href="feedback-widget.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <!-- Gate + auth check -->
+  <script>
+    if (sessionStorage.getItem('botany-gate') !== 'true') {
+      window.location.href = 'gate.html';
+    }
+    if (!sessionStorage.getItem('botany-user')) {
+      window.location.href = 'index.html';
+    }
+  </script>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="container header-content">
+      <a href="index.html" class="logo">
+        <span class="logo-symbol">&gt;</span>
+        <span>BOTANY</span>
+      </a>
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#stats">Stats</a></li>
+          <li><a href="#usecases">Use Cases</a></li>
+          <li><a href="#growth">Growth</a></li>
+          <li><a href="#pod">My Pod</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <a href="index.html" class="btn btn-outline-header">← Back to Botany</a>
+        <button class="btn btn-outline-header btn-logout" id="logout-btn">Log Out</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Dashboard Hero -->
+  <section class="dash-hero" id="stats">
+    <div class="hero-orb-2"></div>
+    <div class="hero-orb-3"></div>
+    <div class="container">
+      <div class="dash-identity">
+        <div class="dash-avatar" id="dash-avatar"></div>
+        <div class="dash-info">
+          <h1 class="dash-name" id="dash-name"></h1>
+          <div class="dash-meta">
+            <span class="dash-tier-badge" id="dash-tier"></span>
+            <span class="dash-pod" id="dash-pod"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-stats-row" id="dash-stats-row">
+        <div class="dash-stat">
+          <span class="dash-stat-number" id="ds-hours">0</span>
+          <span class="dash-stat-label">Hours Saved</span>
+        </div>
+        <div class="dash-stat">
+          <span class="dash-stat-number" id="ds-usecases">0</span>
+          <span class="dash-stat-label">Use Cases</span>
+        </div>
+        <div class="dash-stat">
+          <span class="dash-stat-number" id="ds-comfort">0</span>
+          <span class="dash-stat-label">Avg Comfort</span>
+        </div>
+        <div class="dash-stat">
+          <span class="dash-stat-number" id="ds-tools">0</span>
+          <span class="dash-stat-label">Tools Used</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tier Progression -->
+  <section class="dash-section" id="growth">
+    <div class="container">
+      <h2 class="dash-section-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Growth Journey
+      </h2>
+      <div class="tier-progress-card" id="tier-progress"></div>
+    </div>
+  </section>
+
+  <!-- Use Cases Timeline -->
+  <section class="dash-section" id="usecases">
+    <div class="container">
+      <h2 class="dash-section-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>
+        Your Use Cases
+      </h2>
+      <div class="dash-usecases" id="dash-usecases"></div>
+    </div>
+  </section>
+
+  <!-- How You Compare -->
+  <section class="dash-section" id="compare">
+    <div class="container">
+      <h2 class="dash-section-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        How You Compare
+      </h2>
+      <div class="dash-compare-grid" id="dash-compare"></div>
+    </div>
+  </section>
+
+  <!-- My Pod -->
+  <section class="dash-section" id="pod">
+    <div class="container">
+      <h2 class="dash-section-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Your Pod
+      </h2>
+      <div id="dash-pod-card"></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-brand">
+        <span class="logo-symbol">&gt;</span>
+        <span>Botany Group | Accenture &copy; 2025</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/pods-data.js"></script>
+  <script src="/dashboard.js"></script>
+  <script src="/feedback-widget.js"></script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Accenture Approved AI Resource Library — Curated guides, policies, prompt packs, and training materials for Microsoft 365 Copilot and AI tools.">
+  <title>AI Resource Library | Botany AI Innovators</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="resources.css">
+  <link rel="stylesheet" href="feedback-widget.css">
+</head>
+
+<body>
+  <!-- Gate check -->
+  <script>
+    if (sessionStorage.getItem('botany-gate') !== 'true') {
+      window.location.href = 'gate.html';
+    }
+  </script>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <a href="index.html" class="logo">
+        <span class="logo-symbol">&gt;</span>
+        <span>BOTANY</span>
+      </a>
+      <nav>
+        <ul class="nav-links">
+          <li><a href="index.html">Home</a></li>
+          <li><a href="index.html#pods">Pods</a></li>
+          <li><a href="index.html#leaderboard">Leaderboard</a></li>
+          <li><a href="resources.html" class="active">Resources</a></li>
+        </ul>
+      </nav>
+      <div class="header-actions">
+        <a href="index.html#submit" class="btn btn-outline">Submit Use Case</a>
+        <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="resources-hero">
+    <div class="hero-orb-2"></div>
+    <div class="hero-orb-3"></div>
+    <div class="hero-inner container">
+      <span class="hero-badge hero-animate">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>CURATED RESOURCE LIBRARY</span>
+      </span>
+      <h1 class="hero-animate">Accenture AI<br>Resource Library</h1>
+      <p class="hero-subtitle hero-animate">Your one-stop destination for approved guides, policies, prompt packs, and training materials. <strong id="total-count">0</strong> curated resources across <strong>8</strong> categories.</p>
+
+      <!-- Search Bar -->
+      <div class="search-container hero-animate">
+        <input type="text" class="search-bar" id="search-bar" placeholder="Search resources by title, description, or tool..." autocomplete="off" spellcheck="false">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <button class="search-clear" id="search-clear" aria-label="Clear search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="search-count" id="search-count" style="opacity:0">&nbsp;</div>
+    </div>
+  </section>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="container">
+      <div class="filter-bar-inner" id="filter-bar-inner">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Resource Sections -->
+  <main class="resources-main container" id="resources-main">
+    <!-- Populated by JS -->
+  </main>
+
+  <!-- No Results State -->
+  <div class="no-results container" id="no-results">
+    <div class="no-results-icon">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </div>
+    <h3>No resources found</h3>
+    <p>Try adjusting your search or filters to find what you're looking for.</p>
+  </div>
+
+  <!-- Submit FAB -->
+  <button class="submit-fab" id="submit-fab">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <span>Submit Resource</span>
+  </button>
+
+  <!-- Submit Modal -->
+  <div class="submit-modal" id="submit-modal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <div class="modal-header-section">
+        <h2>Submit a Resource</h2>
+        <p>Share an AI resource with the Botany community. All submissions are reviewed before being added to the library.</p>
+      </div>
+
+      <form class="submit-form" id="submit-resource-form" novalidate>
+        <div class="form-grid">
+          <!-- Row 1 -->
+          <div class="form-group">
+            <label for="res-title">Resource Title <span class="required">*</span></label>
+            <input type="text" id="res-title" name="title" required placeholder="e.g. M365 Copilot Best Practices">
+          </div>
+          <div class="form-group">
+            <label for="res-type">Type <span class="required">*</span></label>
+            <select id="res-type" name="type" required>
+              <option value="">Select type</option>
+              <option value="guide">Guide</option>
+              <option value="policy">Policy</option>
+              <option value="training">Training</option>
+              <option value="prompt pack">Prompt Pack</option>
+              <option value="prompt library">Prompt Library</option>
+              <option value="community">Community</option>
+              <option value="agent building guide">Agent Building Guide</option>
+            </select>
+          </div>
+
+          <!-- Row 2 -->
+          <div class="form-group form-full">
+            <label for="res-description">Description <span class="required">*</span></label>
+            <textarea id="res-description" name="description" rows="3" required placeholder="Briefly describe what this resource covers..."></textarea>
+          </div>
+
+          <!-- Row 3 -->
+          <div class="form-group">
+            <label for="res-url">Access URL or Filename <span class="required">*</span></label>
+            <input type="text" id="res-url" name="accessUrl" required placeholder="https://... or filename.pptx">
+          </div>
+          <div class="form-group">
+            <label for="res-access-type">Access Type</label>
+            <select id="res-access-type" name="accessType">
+              <option value="link">Link</option>
+              <option value="file">File</option>
+              <option value="workday">Workday Course</option>
+              <option value="communityPost">Community Post</option>
+              <option value="community">Community Group</option>
+            </select>
+          </div>
+
+          <!-- Row 4 -->
+          <div class="form-group">
+            <label for="res-tools">Primary Tools</label>
+            <input type="text" id="res-tools" name="tools" placeholder="e.g. Microsoft 365 Copilot, Amethyst">
+          </div>
+          <div class="form-group">
+            <label for="res-owner">Owner / Publisher</label>
+            <input type="text" id="res-owner" name="owner" placeholder="e.g. Perez, Karla Erika">
+          </div>
+
+          <!-- Row 5 — Audience -->
+          <div class="form-group form-full">
+            <label>Target Audience</label>
+            <div class="checkbox-group">
+              <label class="checkbox-pill">
+                <input type="checkbox" name="audience" value="beginner">
+                <span class="checkbox-pill-label">Beginner</span>
+              </label>
+              <label class="checkbox-pill">
+                <input type="checkbox" name="audience" value="practitioner">
+                <span class="checkbox-pill-label">Practitioner</span>
+              </label>
+              <label class="checkbox-pill">
+                <input type="checkbox" name="audience" value="developer">
+                <span class="checkbox-pill-label">Developer</span>
+              </label>
+              <label class="checkbox-pill">
+                <input type="checkbox" name="audience" value="leadership">
+                <span class="checkbox-pill-label">Leadership</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Row 6 -->
+          <div class="form-group form-full">
+            <label for="res-submitter">Your Name <span class="required">*</span></label>
+            <input type="text" id="res-submitter" name="submitter" required placeholder="e.g. Jane Smith">
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('submit-modal').classList.remove('active');document.body.style.overflow='';">Cancel</button>
+          <button type="submit" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <span>Submit Resource</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- Success state -->
+      <div class="form-success-state" id="submit-success">
+        <div class="success-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h3>Resource Submitted!</h3>
+        <p>Thank you for contributing to the Botany AI Resource Library. Your submission will be reviewed shortly.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-stat">
+        <strong id="footer-resource-count">0</strong> curated AI resources &mdash; constantly growing
+      </div>
+      <div class="footer-links">
+        <a href="index.html" class="footer-link">Home</a>
+        <span class="footer-sep">&bull;</span>
+        <a href="index.html#pods" class="footer-link">Pods</a>
+        <span class="footer-sep">&bull;</span>
+        <a href="index.html#submit" class="footer-link">Submit Use Case</a>
+        <span class="footer-sep">&bull;</span>
+        <a href="resources.html" class="footer-link">Resource Library</a>
+      </div>
+      <div class="footer-brand">
+        <span class="logo-symbol">&gt;</span>
+        <span>Botany Group | Accenture &copy; 2025</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- JavaScript -->
+  <script src="resources.js"></script>
+  <script src="feedback-widget.js"></script>
+</body>
+
+</html>
