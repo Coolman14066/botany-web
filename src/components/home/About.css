@@ -1,0 +1,103 @@
+.about-section {
+    background: var(--bg-cream);
+    color: var(--text-on-cream);
+    padding: var(--section-padding) 0;
+    position: relative;
+}
+
+.about-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url('/images/botanical-pattern.png') center/cover no-repeat;
+    opacity: 0.06;
+    pointer-events: none;
+}
+
+.about-header {
+    text-align: center;
+    max-width: 700px;
+    margin: 0 auto var(--space-4xl);
+    position: relative;
+}
+
+.about-headline {
+    color: var(--text-on-cream);
+    margin-bottom: var(--space-lg);
+}
+
+.accent-green-on-light {
+    color: var(--accent-emerald);
+}
+
+.about-lead {
+    font-size: var(--font-size-lg);
+    color: var(--text-on-cream-secondary);
+    line-height: 1.7;
+}
+
+/* ─── Pillar Cards ─── */
+.about-pillars {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-xl);
+    margin-bottom: var(--space-4xl);
+}
+
+.pillar-card {
+    padding: var(--space-2xl);
+    text-align: center;
+    position: relative;
+}
+
+.pillar-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto var(--space-lg);
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%);
+    border-radius: var(--radius-lg);
+    color: var(--accent-emerald);
+    transition: all var(--duration-normal) var(--ease-out);
+}
+
+.pillar-card:hover .pillar-icon-wrap {
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%);
+    transform: scale(1.05);
+}
+
+.pillar-title {
+    font-family: var(--font-display);
+    font-size: var(--font-size-xl);
+    font-weight: 400;
+    color: var(--text-on-cream);
+    margin-bottom: var(--space-sm);
+}
+
+.pillar-desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-on-cream-secondary);
+    line-height: 1.6;
+}
+
+/* ─── CTA ─── */
+.about-cta {
+    text-align: center;
+}
+
+.about-cta-text {
+    font-size: var(--font-size-base);
+    color: var(--text-on-cream-muted);
+    font-style: italic;
+    margin-bottom: var(--space-lg);
+    font-family: var(--font-display);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+    .about-pillars {
+        grid-template-columns: 1fr;
+    }
+}

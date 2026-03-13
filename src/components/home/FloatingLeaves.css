@@ -1,0 +1,20 @@
+.floating-leaves {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.floating-leaf {
+    position: absolute;
+    bottom: -40px;
+    animation: float-drift linear infinite;
+    filter: blur(0.5px);
+}
+
+.floating-leaf::after {
+    content: '';
+    animation: float-sway ease-in-out infinite;
+    animation-duration: var(--sway-duration, 3s);
+}
