@@ -22,3 +22,8 @@ Thumbs.db
 
 # Temp scripts
 create_repo.ps1
+upload_to_github.ps1
+landingpage_audit.md
+
+# Netlify local state
+.netlify/
