@@ -185,12 +185,84 @@ function findUserPods(userName) {
   return results;
 }
 
-// Shared tier calculation — the SINGLE source of truth
+// ============================================
+// GROWTH LEVELS — the SINGLE source of truth
+// ============================================
+// 8 botanical species levels, ordered from humblest to most legendary.
+// Each level has: key, name, icon (emoji), xpThreshold, cssClass, description
+const GROWTH_LEVELS = [
+  { key: 'moss',     name: 'Moss',     icon: '🌿', xpThreshold: 0,    cssClass: 'moss',     description: 'Tiny, resilient, first to colonize' },
+  { key: 'fern',     name: 'Fern',     icon: '🌱', xpThreshold: 50,   cssClass: 'fern',     description: 'Ancient, elegant, growing' },
+  { key: 'bamboo',   name: 'Bamboo',   icon: '🎋', xpThreshold: 150,  cssClass: 'bamboo',   description: 'Fastest-growing plant on Earth' },
+  { key: 'magnolia', name: 'Magnolia', icon: '🌸', xpThreshold: 350,  cssClass: 'magnolia', description: 'Bold, beautiful, visible impact' },
+  { key: 'willow',   name: 'Willow',   icon: '🌳', xpThreshold: 700,  cssClass: 'willow',   description: 'Graceful, deeply rooted' },
+  { key: 'oak',      name: 'Oak',      icon: '🌲', xpThreshold: 1200, cssClass: 'oak',      description: 'Pillar of the forest' },
+  { key: 'redwood',  name: 'Redwood',  icon: '🪵', xpThreshold: 2000, cssClass: 'redwood',  description: 'Towers above, lives millennia' },
+  { key: 'sequoia',  name: 'Sequoia',  icon: '🏔️', xpThreshold: 3500, cssClass: 'sequoia',  description: 'Legendary. The largest living thing.' }
+];
+
+// Plant avatar sprite paths — one per growth level
+const PLANT_AVATARS = {
+  moss:     '/assets/plants/moss.png',
+  sprout:   '/assets/plants/sprout.png',
+  fern:     '/assets/plants/fern.png',
+  bamboo:   '/assets/plants/bamboo.png',
+  magnolia: '/assets/plants/magnolia.png',
+  willow:   '/assets/plants/willow.png',
+  oak:      '/assets/plants/oak.png',
+  redwood:  '/assets/plants/redwood.png',
+  sequoia:  '/assets/plants/sequoia.png'
+};
+
+// Get plant avatar path for a level key
+function getPlantAvatar(levelKey) {
+  return PLANT_AVATARS[levelKey] || PLANT_AVATARS.moss;
+}
+
+// XP calculation: 10 XP per hour saved + 50 XP per use case + 15 XP per pro tip
+function calculateXP(hours, useCaseCount, tipCount) {
+  return Math.round((hours || 0) * 10) + ((useCaseCount || 0) * 50) + ((tipCount || 0) * 15);
+}
+
+// Get level object from XP value
+function getLevelFromXP(xp) {
+  let level = GROWTH_LEVELS[0];
+  for (let i = GROWTH_LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= GROWTH_LEVELS[i].xpThreshold) {
+      level = GROWTH_LEVELS[i];
+      break;
+    }
+  }
+  // Calculate progress to next level
+  const currentIndex = GROWTH_LEVELS.indexOf(level);
+  const nextLevel = GROWTH_LEVELS[currentIndex + 1] || null;
+  const xpInCurrentLevel = xp - level.xpThreshold;
+  const xpNeededForNext = nextLevel ? (nextLevel.xpThreshold - level.xpThreshold) : 0;
+  const progressPercent = nextLevel ? Math.min((xpInCurrentLevel / xpNeededForNext) * 100, 100) : 100;
+
+  return {
+    ...level,
+    xp,
+    nextLevel,
+    xpInCurrentLevel,
+    xpNeededForNext,
+    progressPercent,
+    levelIndex: currentIndex
+  };
+}
+
+// Shared level calculation — the SINGLE source of truth
+// Replaces the old getSharedTier(hours, useCases)
+function getSharedLevel(hours, useCases) {
+  const xp = calculateXP(hours, useCases);
+  return getLevelFromXP(xp);
+}
+
+// Backward-compatible alias — old code calls getSharedTier, it now returns level data
 function getSharedTier(hours, useCases) {
-  if (hours >= 20 || useCases >= 3) return { key: 'propagator', name: 'Propagator', min: 20 };
-  if (hours >= 10 || useCases >= 2) return { key: 'pollinator', name: 'Pollinator', min: 10 };
-  if (hours >= 1 || useCases >= 1) return { key: 'seedling', name: 'Seedling', min: 1 };
-  return { key: 'planted', name: 'Planted', min: 0 };
+  const level = getSharedLevel(hours, useCases);
+  // Return in the old { key, name, min } format for compatibility with existing render code
+  return { key: level.key, name: level.name, min: level.xpThreshold, class: level.cssClass, icon: level.icon };
 }
 
 // Shared hours parser — the SINGLE source of truth

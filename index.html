@@ -42,6 +42,7 @@
           <li><a href="#leaderboard">Leaderboard</a></li>
           <li><a href="#analytics">Insights</a></li>
           <li><a href="#gallery">Use Cases</a></li>
+          <li><a href="#tips">Tips</a></li>
           <li><a href="resources.html">Resources</a></li>
         </ul>
       </nav>
@@ -381,6 +382,35 @@
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pro Tips Feed -->
+  <section id="tips" class="tips-section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-title">
+          <span class="icon section-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </span>
+          <h2>Pro Tips</h2>
+          <span class="section-tag">Community Knowledge</span>
+        </div>
+        <p class="section-desc">Quick AI tips, tricks, prompts, and discoveries shared by Botanists</p>
+      </div>
+      <div class="tips-type-filters" id="tips-type-filters">
+        <button class="filter-tab active" data-type="all">All</button>
+        <button class="filter-tab" data-type="quick_tip">💡 Quick Tips</button>
+        <button class="filter-tab" data-type="tool_spotlight">🔧 Tool Spotlights</button>
+        <button class="filter-tab" data-type="prompt">💬 Prompts</button>
+        <button class="filter-tab" data-type="til">🧪 TIL</button>
+      </div>
+      <div class="tips-feed" id="tips-feed">
+        <p style="text-align:center;color:var(--text-muted);padding:3rem;">Loading tips…</p>
+      </div>
+      <div style="text-align:center;margin-top:1.5rem;">
+        <button class="btn btn-primary" id="share-tip-btn" style="display:none;">Share a Tip</button>
       </div>
     </div>
   </section>
@@ -845,6 +875,7 @@
   </div>
 
   <!-- JavaScript -->
+  <script src="/pods-data.js"></script>
   <script type="module" src="/app.js"></script>
   <script src="/feedback-widget.js"></script>
 </body>

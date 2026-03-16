@@ -9,11 +9,7 @@
 // SVG ICON LIBRARY
 // ============================================
 const ICONS = {
-  // Tier icons
-  propagator: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66L7 18l4-2 4 2 1.3 4 1.88-.66C16.1 16.17 14 10 17 8z"/><path d="M12 2a5.5 5.5 0 0 0 0 8"/><path d="M12 2a5.5 5.5 0 0 1 0 8"/></svg>',
-  pollinator: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c4-4 8-7.5 8-12a8 8 0 1 0-16 0c0 4.5 4 8 8 12z"/><path d="M12 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/></svg>',
-  seedling: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"/><path d="M12 20v-8"/><path d="M12 12c-3-3-7-2-7 2 3 0 5.5-1 7-2z"/><path d="M12 12c3-3 7-2 7 2-3 0-5.5-1-7-2z"/></svg>',
-  planted: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>',
+  // Level icons (now using emoji from GROWTH_LEVELS, SVGs removed)
 
   // Tool icons
   egpt: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
@@ -43,13 +39,8 @@ const ICONS = {
 // CONFIGURATION
 // ============================================
 const CONFIG = {
-  csvPath: '/data.csv',
-  tiers: {
-    propagator: { min: 20, icon: ICONS.propagator, name: 'Propagator', class: 'propagator' },
-    pollinator: { min: 10, icon: ICONS.pollinator, name: 'Pollinator', class: 'pollinator' },
-    seedling: { min: 1, icon: ICONS.seedling, name: 'Seedling', class: 'seedling' },
-    planted: { min: 0, icon: ICONS.planted, name: 'Planted', class: 'planted' }
-  },
+  // Tiers now come from GROWTH_LEVELS in pods-data.js
+  // Access via: GROWTH_LEVELS array or getSharedLevel(hours, useCases),
   toolColors: {
     'Enterprise GPT': { class: 'egpt', icon: ICONS.egpt },
     'Copilot': { class: 'copilot', icon: ICONS.copilot },
@@ -236,70 +227,30 @@ const PHASE_2_PODS = [
 ];
 
 // ============================================
-// CSV PARSING
+// SUPABASE DATA LOADING
 // ============================================
-async function loadCSVData() {
+async function loadSupabaseData() {
   try {
-    // URL-encode the path for servers that need it
-    const response = await fetch(encodeURI(CONFIG.csvPath));
-    if (!response.ok) {
-      console.error('CSV fetch failed:', response.status);
+    if (!supabase) {
+      console.error('Supabase client not initialized');
       return [];
     }
-    const text = await response.text();
-    // Guard: if the response looks like HTML (e.g. a 404 page), bail
-    if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
-      console.error('CSV endpoint returned HTML instead of CSV data');
+    const { data, error } = await supabase
+      .from('use_case_submissions')
+      .select('*')
+      .eq('status', 'approved')
+      .order('submitted_at', { ascending: true });
+
+    if (error) {
+      console.error('Supabase fetch error:', error);
       return [];
     }
-    return parseCSV(text);
+    console.log(`Loaded ${data.length} use cases from Supabase`);
+    return data || [];
   } catch (error) {
-    console.error('Error loading CSV:', error);
+    console.error('Error loading data from Supabase:', error);
     return [];
   }
-}
-
-function parseCSV(text) {
-  const lines = text.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return [];
-
-  const headers = parseCSVLine(lines[0]);
-  const data = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    const row = {};
-
-    headers.forEach((header, index) => {
-      row[header.trim()] = values[index] ? values[index].trim() : '';
-    });
-
-    data.push(row);
-  }
-
-  return data;
-}
-
-function parseCSVLine(line) {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  result.push(current);
-
-  return result.map(val => val.replace(/^"|"$/g, '').trim());
 }
 
 // ============================================
@@ -309,20 +260,21 @@ function processData(data) {
   const userMap = new Map();
 
   data.forEach(row => {
-    const name = row['Name'] || '';
-    const email = row['Email'] || '';
+    // Read from Supabase column names (snake_case)
+    const name = row.name || '';
+    const email = row.email || '';
 
     if (!name) return;
 
-    const hours = parseHours(row['Estimated hours saved or impact realized'] || row['How many hours did AI save you this week?']);
-    const tools = parseTools(row['Which AI or new tools did you use?']);
-    const comfort = parseInt(row['What was your comfort level with AI tools this week?']) || 3;
-    const recommends = (row['Would you recommend this use case for others?'] || '').toLowerCase().includes('yes');
-    const barrier = row['What is your biggest barrier to AI adoption?'] || 'Unknown';
-    const useCase = row['What was the use case or activity?'] || '';
-    const value = row['How did this use case create value for your team or client?'] || '';
-    const challenges = row['What challenges or barriers did you encounter?'] || '';
-    const usedInClientWork = (row['Have you used AI in client work yet?'] || '').toLowerCase().includes('yes');
+    const hours = parseFloat(row.hours_saved) || 0;
+    const tools = parseTools(row.tools || '');
+    const comfort = parseInt(row.comfort_level) || 3;
+    const recommends = row.recommends === true;
+    const barrier = row.barrier || 'Unknown';
+    const useCase = row.use_case || '';
+    const value = row.value_created || '';
+    const challenges = row.challenges || '';
+    const usedInClientWork = row.used_in_client_work === true;
 
     // Track tool usage
     tools.forEach(tool => {
@@ -359,12 +311,19 @@ function processData(data) {
   });
 
   // Convert to array and calculate averages
-  return Array.from(userMap.values()).map(user => ({
-    ...user,
-    avgComfort: (user.totalComfort / user.useCaseCount).toFixed(1),
-    allTools: Array.from(user.allTools),
-    tier: getTier(user.totalHours, user.useCaseCount)
-  }));
+  return Array.from(userMap.values()).map(user => {
+    const xp = calculateXP(user.totalHours, user.useCaseCount);
+    const level = getLevelFromXP(xp);
+    return {
+      ...user,
+      avgComfort: (user.totalComfort / user.useCaseCount).toFixed(1),
+      allTools: Array.from(user.allTools),
+      xp,
+      level,
+      // Backward compat: tier object with class/name/icon for existing render code
+      tier: { key: level.key, name: level.name, class: level.cssClass, icon: level.icon }
+    };
+  });
 }
 
 function parseHours(value) {
@@ -414,10 +373,9 @@ function parseTools(value) {
 }
 
 function getTier(hours, useCases) {
-  if (hours >= 20 || useCases >= 3) return CONFIG.tiers.propagator;
-  if (hours >= 10 || useCases >= 2) return CONFIG.tiers.pollinator;
-  if (hours >= 1 || useCases >= 1) return CONFIG.tiers.seedling;
-  return CONFIG.tiers.planted;
+  const xp = calculateXP(hours, useCases);
+  const level = getLevelFromXP(xp);
+  return { key: level.key, name: level.name, class: level.cssClass, icon: level.icon, min: level.xpThreshold };
 }
 
 // ============================================
@@ -493,7 +451,7 @@ function renderPodium(users) {
         <div class="podium-avatar">${initials}</div>
         <div class="podium-name profile-link">${user.name}</div>
         <div class="podium-hours">${Math.round(user.totalHours)} hours saved</div>
-        <span class="tier-badge ${user.tier.class}"><span class="tier-icon">${user.tier.icon}</span> ${user.tier.name}</span>
+        <span class="tier-badge ${user.tier.class}"><span class="tier-icon">${user.tier.icon}</span> ${user.tier.name}</span><span class="xp-label">${user.xp || 0} XP</span>
         <div class="podium-stand"><span class="podium-stand-rank">${idx + 1}</span></div>
       </div>
     `;
@@ -539,19 +497,19 @@ function renderGallery(data) {
   if (!gridEl) return;
 
   // Get unique tools for filters
-  const uniqueTools = [...new Set(data.flatMap(row => parseTools(row['Which AI or new tools did you use?'])))];
+  const uniqueTools = [...new Set(data.flatMap(row => parseTools(row.tools || '')))];
   renderToolFilters(uniqueTools);
 
   gridEl.innerHTML = data.map((row, index) => {
-    const tools = parseTools(row['Which AI or new tools did you use?']);
+    const tools = parseTools(row.tools || '');
     const mainTool = tools[0] || 'AI Tool';
     const toolConfig = CONFIG.toolColors[mainTool] || CONFIG.toolColors.default;
-    const recommends = (row['Would you recommend this use case for others?'] || '').toLowerCase().includes('yes');
-    const comfort = parseInt(row['What was your comfort level with AI tools this week?']) || 3;
-    const hours = parseHours(row['Estimated hours saved or impact realized'] || row['How many hours did AI save you this week?']);
-    const useCase = row['What was the use case or activity?'] || 'AI Innovation';
-    const name = row['Name'] || 'Anonymous';
-    const value = row['How did this use case create value for your team or client?'] || '';
+    const recommends = row.recommends === true;
+    const comfort = parseInt(row.comfort_level) || 3;
+    const hours = parseFloat(row.hours_saved) || 0;
+    const useCase = row.use_case || 'AI Innovation';
+    const name = row.name || 'Anonymous';
+    const value = row.value_created || '';
     const comfortPercent = (comfort / 5) * 100;
 
     return `
@@ -643,15 +601,13 @@ function renderAnalytics(data) {
   renderBarChart('barrier-chart', barrierStats, 'Barrier');
 
   // Recommendation rate
-  const totalRecommends = data.filter(row =>
-    (row['Would you recommend this use case for others?'] || '').toLowerCase().includes('yes')
-  ).length;
+  const totalRecommends = data.filter(row => row.recommends === true).length;
   const recommendRate = Math.round((totalRecommends / data.length) * 100);
   document.getElementById('recommend-rate').textContent = recommendRate + '%';
 
   // Average comfort
   const comfortLevels = data
-    .map(row => parseInt(row['What was your comfort level with AI tools this week?']) || 0)
+    .map(row => parseInt(row.comfort_level) || 0)
     .filter(c => c > 0);
   const avgComfort = (comfortLevels.reduce((a, b) => a + b, 0) / comfortLevels.length).toFixed(1);
   document.getElementById('avg-comfort').textContent = avgComfort;
@@ -686,16 +642,16 @@ function openUseCaseModal(row) {
   const modal = document.getElementById('usecase-modal');
   if (!modal) return;
 
-  const tools = parseTools(row['Which AI or new tools did you use?']);
+  const tools = parseTools(row.tools || '');
   const mainTool = tools[0] || 'AI Tool';
   const toolConfig = CONFIG.toolColors[mainTool] || CONFIG.toolColors.default;
-  const recommends = (row['Would you recommend this use case for others?'] || '').toLowerCase().includes('yes');
-  const comfort = parseInt(row['What was your comfort level with AI tools this week?']) || 3;
-  const hours = parseHours(row['Estimated hours saved or impact realized'] || row['How many hours did AI save you this week?']);
-  const useCase = row['What was the use case or activity?'] || 'AI Innovation';
-  const name = row['Name'] || 'Anonymous';
-  const value = row['How did this use case create value for your team or client?'] || 'Not specified';
-  const challenges = row['What challenges or barriers did you encounter?'] || 'None reported';
+  const recommends = row.recommends === true;
+  const comfort = parseInt(row.comfort_level) || 3;
+  const hours = parseFloat(row.hours_saved) || 0;
+  const useCase = row.use_case || 'AI Innovation';
+  const name = row.name || 'Anonymous';
+  const value = row.value_created || 'Not specified';
+  const challenges = row.challenges || 'None reported';
   const comfortPercent = (comfort / 5) * 100;
 
   const toolBadges = tools.map(t => {
@@ -1216,6 +1172,17 @@ function openPodPostModal(teamId, podName) {
       if (supabase) {
         const { error } = await supabase.from('pod_posts').insert([payload]);
         if (error) throw error;
+        // Log activity for streak tracking
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 1);
+        const weekNum = Math.ceil((now - start) / 604800000);
+        await supabase.from('activity_log').insert([{
+          user_name: currentUser,
+          action_type: 'pod_post',
+          description: title.slice(0, 200),
+          week_number: weekNum,
+          year: now.getFullYear()
+        }]);
       }
 
       // Add to local cache
@@ -1465,6 +1432,17 @@ function setupPodIdeaModal() {
             console.error('Pod idea insert error:', error);
             throw error;
           }
+          // Log activity for streak tracking
+          const now = new Date();
+          const start = new Date(now.getFullYear(), 0, 1);
+          const weekNum = Math.ceil((now - start) / 604800000);
+          await supabase.from('activity_log').insert([{
+            user_name: ideaName,
+            action_type: 'pod_idea',
+            description: ideaTitle.slice(0, 200),
+            week_number: weekNum,
+            year: now.getFullYear()
+          }]);
         } else {
           console.log('Pod idea submitted (no Supabase):', payload);
           await new Promise(r => setTimeout(r, 500));
@@ -1687,7 +1665,7 @@ function setupLoginModal() {
         if (!pool.has(key)) {
           pool.set(key, {
             name: name,
-            tier: 'Planted',
+            tier: 'Moss',
             totalHours: 0,
             useCaseCount: 0,
             source: 'pod'
@@ -1775,11 +1753,251 @@ function saveSubmissionToLocal(type, payload) {
 }
 
 // ============================================
+// PRO TIPS FEED
+// ============================================
+const TIP_TYPE_CONFIG = {
+  quick_tip:      { label: '\ud83d\udca1 Quick Tip',      color: '#ffa500', maxLen: 280 },
+  tool_spotlight:  { label: '\ud83d\udd27 Tool Spotlight',  color: '#38bdf8', maxLen: 500 },
+  prompt:          { label: '\ud83d\udcac Prompt',          color: '#a100ff', maxLen: 500 },
+  til:             { label: '\ud83e\uddea TIL',             color: '#4ade80', maxLen: 280 }
+};
+
+let allTips = [];
+
+async function loadProTips() {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase
+      .from('pro_tips')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) { console.warn('Tips load error:', error); return []; }
+    return data || [];
+  } catch (e) { return []; }
+}
+
+function renderTipsFeed(tips, filter = 'all') {
+  const el = document.getElementById('tips-feed');
+  if (!el) return;
+
+  const filtered = filter === 'all' ? tips : tips.filter(t => t.tip_type === filter);
+  const currentUser = sessionStorage.getItem('botany-user');
+
+  if (filtered.length === 0) {
+    el.innerHTML = `<div class="tips-empty">
+      <p>${filter === 'all' ? 'No tips shared yet. Be the first! \ud83c\udf31' : 'No tips in this category yet.'}</p>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map(tip => {
+    const cfg = TIP_TYPE_CONFIG[tip.tip_type] || TIP_TYPE_CONFIG.quick_tip;
+    const date = new Date(tip.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const tools = (tip.tool_tags || '').split(';').filter(Boolean);
+    const initials = tip.author_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+    return `
+      <div class="tip-card" data-tip-id="${tip.id}">
+        <div class="tip-header">
+          <div class="tip-type-badge" style="--tip-color:${cfg.color}">${cfg.label}</div>
+          <span class="tip-date">${date}</span>
+        </div>
+        <div class="tip-content">${tip.content}</div>
+        ${tools.length > 0 ? `<div class="tip-tools">${tools.map(t => `<span class="tip-tool-tag">${t.trim()}</span>`).join('')}</div>` : ''}
+        <div class="tip-footer">
+          <div class="tip-author">
+            <div class="tip-author-avatar">${initials}</div>
+            <span>${tip.author_name}</span>
+          </div>
+          <button class="tip-upvote-btn ${currentUser ? '' : 'disabled'}" data-tip-id="${tip.id}" title="${currentUser ? 'Upvote' : 'Log in to upvote'}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            <span class="tip-upvote-count">${tip.upvotes || 0}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function upvoteTip(tipId) {
+  const currentUser = sessionStorage.getItem('botany-user');
+  if (!currentUser || !supabase) return false;
+
+  // Check if already voted
+  const { data: existing } = await supabase
+    .from('tip_upvotes')
+    .select('id')
+    .eq('tip_id', tipId)
+    .eq('user_name', currentUser)
+    .limit(1);
+
+  if (existing && existing.length > 0) return false; // Already voted
+
+  // Insert upvote
+  const { error: insertErr } = await supabase
+    .from('tip_upvotes')
+    .insert([{ tip_id: tipId, user_name: currentUser }]);
+  if (insertErr) return false;
+
+  // Increment count
+  const tip = allTips.find(t => t.id === tipId);
+  if (tip) {
+    tip.upvotes = (tip.upvotes || 0) + 1;
+    await supabase.from('pro_tips').update({ upvotes: tip.upvotes }).eq('id', tipId);
+  }
+  return true;
+}
+
+async function submitProTip(authorName, tipType, content, toolTags) {
+  if (!supabase) return false;
+
+  const { error } = await supabase.from('pro_tips').insert([{
+    author_name: authorName,
+    tip_type: tipType,
+    content,
+    tool_tags: toolTags
+  }]);
+  if (error) { console.error('Tip submit error:', error); return false; }
+
+  // Log to activity_log for streak
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const weekNum = Math.ceil((now - start) / 604800000);
+  await supabase.from('activity_log').insert([{
+    user_name: authorName,
+    action_type: 'pro_tip',
+    description: content.slice(0, 200),
+    week_number: weekNum,
+    year: now.getFullYear()
+  }]);
+
+  return true;
+}
+
+function setupTipsSection() {
+  const currentUser = sessionStorage.getItem('botany-user');
+
+  // Show share button if logged in
+  const shareBtn = document.getElementById('share-tip-btn');
+  if (shareBtn && currentUser) {
+    shareBtn.style.display = 'inline-flex';
+    shareBtn.addEventListener('click', () => showTipModal(currentUser));
+  }
+
+  // Type filter tabs
+  document.getElementById('tips-type-filters')?.addEventListener('click', (e) => {
+    const tab = e.target.closest('.filter-tab');
+    if (!tab) return;
+    document.querySelectorAll('#tips-type-filters .filter-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    renderTipsFeed(allTips, tab.dataset.type);
+  });
+
+  // Upvote clicks (delegated)
+  document.getElementById('tips-feed')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.tip-upvote-btn:not(.disabled)');
+    if (!btn) return;
+    btn.classList.add('disabled');
+    const ok = await upvoteTip(btn.dataset.tipId);
+    if (ok) {
+      const countEl = btn.querySelector('.tip-upvote-count');
+      countEl.textContent = parseInt(countEl.textContent) + 1;
+      btn.classList.add('upvoted');
+    } else {
+      btn.classList.remove('disabled');
+    }
+  });
+}
+
+function showTipModal(authorName) {
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay active';
+  modal.id = 'tip-modal';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:520px;">
+      <button class="modal-close" onclick="document.getElementById('tip-modal').remove()">&times;</button>
+      <h3 style="font-family:var(--font-display);margin-bottom:1rem;">Share a Pro Tip</h3>
+      <form id="tip-form">
+        <div class="form-group">
+          <label>Tip Type</label>
+          <select id="tip-type" required style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(161,0,255,0.15);color:var(--text-primary);width:100%;">
+            <option value="quick_tip">\ud83d\udca1 Quick Tip (280 chars)</option>
+            <option value="tool_spotlight">\ud83d\udd27 Tool Spotlight (500 chars)</option>
+            <option value="prompt">\ud83d\udcac Prompt (500 chars)</option>
+            <option value="til">\ud83e\uddea TIL - Today I Learned (280 chars)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Your Tip</label>
+          <textarea id="tip-content" required maxlength="280" rows="4" placeholder="Share your AI tip, trick, or discovery\u2026" style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(161,0,255,0.15);color:var(--text-primary);width:100%;resize:vertical;"></textarea>
+          <div style="font-size:0.75rem;color:var(--text-muted);text-align:right;" id="tip-char-count">0/280</div>
+        </div>
+        <div class="form-group">
+          <label>Tools Used (optional, semicolon-separated)</label>
+          <input type="text" id="tip-tools" placeholder="e.g. Copilot; ChatGPT; Claude" style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(161,0,255,0.15);color:var(--text-primary);width:100%;">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Share Tip</button>
+      </form>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Set up character counter and type switching
+  const typeSelect = modal.querySelector('#tip-type');
+  const textarea = modal.querySelector('#tip-content');
+  const charCount = modal.querySelector('#tip-char-count');
+
+  function updateMaxLen() {
+    const cfg = TIP_TYPE_CONFIG[typeSelect.value];
+    textarea.maxLength = cfg.maxLen;
+    charCount.textContent = `${textarea.value.length}/${cfg.maxLen}`;
+  }
+  typeSelect.addEventListener('change', updateMaxLen);
+  textarea.addEventListener('input', updateMaxLen);
+
+  // Submit handler
+  modal.querySelector('#tip-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = 'Sharing\u2026';
+
+    const ok = await submitProTip(
+      authorName,
+      typeSelect.value,
+      textarea.value.trim(),
+      modal.querySelector('#tip-tools').value.trim()
+    );
+
+    if (ok) {
+      modal.querySelector('.modal-content').innerHTML = `
+        <div class="form-success" style="display:flex">
+          <div class="success-icon">\u2705</div>
+          <h3>Tip Shared!</h3>
+          <p>Your pro tip is now live. +15 XP earned!</p>
+        </div>
+      `;
+      // Reload tips
+      allTips = await loadProTips();
+      renderTipsFeed(allTips);
+      setTimeout(() => modal.remove(), 2500);
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Share Tip';
+    }
+  });
+
+  // Close on overlay click
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 async function init() {
   try {
-    allData = await loadCSVData();
+    allData = await loadSupabaseData();
     processedUsers = processData(allData);
     processedUsers.sort((a, b) => b.totalHours - a.totalHours);
 
@@ -1793,6 +2011,11 @@ async function init() {
     renderLeaderboard(processedUsers);
     renderGallery(allData);
     renderAnalytics(allData);
+
+    // Pro Tips
+    allTips = await loadProTips();
+    renderTipsFeed(allTips);
+    setupTipsSection();
 
     setupLeaderboardSorting();
     setupScrollAnimations();
@@ -1925,6 +2148,17 @@ function setupSubmissionForm() {
           // Continue — still save to localStorage as backup
         } else {
           console.log('Use case saved to Supabase successfully');
+          // Log activity for streak tracking
+          const now = new Date();
+          const start = new Date(now.getFullYear(), 0, 1);
+          const weekNum = Math.ceil((now - start) / 604800000);
+          await supabase.from('activity_log').insert([{
+            user_name: payload.name,
+            action_type: 'use_case',
+            description: payload.useCase.slice(0, 200),
+            week_number: weekNum,
+            year: now.getFullYear()
+          }]);
         }
       }
 
