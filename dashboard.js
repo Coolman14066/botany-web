@@ -165,7 +165,7 @@ const TUTORIAL_VERSION = '2';
 
 const TUTORIAL_STEPS = [
   {
-    type: 'modal', icon: '\ud83c\udf31', title: 'Welcome to your Botany Profile!',
+    type: 'modal', icon: '\ud83c\udf31', title: 'Welcome to your B.O.T.A.N.Y(E). Profile!',
     body: 'This is your personal dashboard — everything about your AI journey lives here. Let\u2019s take a quick tour!'
   },
   {
@@ -190,7 +190,7 @@ const TUTORIAL_STEPS = [
   },
   {
     type: 'modal', icon: '\ud83c\udf89', title: 'You\u2019re all set!',
-    body: 'Explore your profile, share a tip, and keep your streak alive. Welcome to Botany \ud83c\udf3f'
+    body: 'Explore your profile, share a tip, and keep your streak alive. Welcome to B.O.T.A.N.Y(E). \ud83c\udf3f'
   }
 ];
 

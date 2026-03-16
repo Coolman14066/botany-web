@@ -70,7 +70,7 @@
           <div class="feedback-header-icon">${ICONS.lightbulb}</div>
           <div>
             <h3>Help Us Improve</h3>
-            <p class="feedback-header-sub">Share your ideas with the Botany team</p>
+            <p class="feedback-header-sub">Share your ideas with the B.O.T.A.N.Y(E). team</p>
           </div>
         </div>
         <button class="feedback-close" id="feedback-close" aria-label="Close">${ICONS.close}</button>
@@ -118,7 +118,7 @@
           <div class="feedback-success" id="feedback-success">
             <div class="feedback-success-icon">${ICONS.check}</div>
             <h4>Idea Submitted!</h4>
-            <p>Thank you for helping us improve Botany. Your feedback shapes what we build next.</p>
+            <p>Thank you for helping us improve B.O.T.A.N.Y(E).. Your feedback shapes what we build next.</p>
             <button class="feedback-success-btn" id="feedback-another">Submit Another Idea</button>
           </div>
         </div>

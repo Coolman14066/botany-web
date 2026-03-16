@@ -139,13 +139,13 @@ const SHARED_PHASE_2_PODS = [
   },
   {
     id: 'fw', name: 'Flies on the Wall',
-    description: 'Observers and supporters of the Botany program',
+    description: 'Observers and supporters of the B.O.T.A.N.Y(E). program',
     leads: [],
     members: ['Jamari Benologa', 'Rikako Kent', 'Katie DeGeyter', 'Annie Rosenman', 'Landon Barnhart', 'Ethan Beh', 'Jeena Cockburn', 'Ali Mahmoud', 'Jack Havemann', 'Carolyn Chen', 'Gavin Stewart', 'Olivia Battison', 'Shloak Dutta']
   },
   {
     id: 'pr', name: 'Propagators',
-    description: 'Logistics, PMO, and organization support for Botany',
+    description: 'Logistics, PMO, and organization support for B.O.T.A.N.Y(E).',
     leads: [],
     members: ['Catelyn Tankersly', 'Maxwell Thielbahr', 'Pedro Henrique', 'Luca Bianchi', 'Eva Larino', 'Bianca Rodriguez Pagano', 'Megan Bickel', 'Daniela Caisaguano', 'Beth Canel', 'Sophia Pasquale', 'Mike Babowice', 'Julietta Medina']
   }
