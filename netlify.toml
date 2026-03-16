@@ -1,6 +1,6 @@
 [build]
-  publish = "."
-  command = "echo 'Static site - no build needed'"
+  publish = "dist"
+  command = "mkdir -p dist && cp -r *.html *.js *.css *.svg assets/ dist/ 2>/dev/null; echo 'Copied source files to dist/'"
 
 [build.environment]
   NODE_VERSION = "20"
