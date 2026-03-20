@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__list_tables",
+      "Bash(~/.claude/skills/gstack/bin/gstack-review-log '{\"skill\":\"plan-eng-review\",\"timestamp\":\"2026-03-20T01:30:00Z\",\"status\":\"clean\",\"unresolved\":0,\"critical_gaps\":3,\"mode\":\"FULL_REVIEW\",\"commit\":\"0bd0c2b\"}')",
+      "Bash(~/.claude/skills/gstack/bin/gstack-review-read)",
+      "Bash(npm install:*)",
+      "Bash(node -c dashboard.js)",
+      "Bash(node -c playwright.config.js)",
+      "Bash(node -c tests/auth-gate.spec.js)",
+      "Bash(node -c tests/admin-panel.spec.js)",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__apply_migration"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

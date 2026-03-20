@@ -10,14 +10,11 @@
  */
 
 // ============================================
-// SUPABASE CONFIG
+// SUPABASE CONFIG — loaded from /supabase-config.js
 // ============================================
-const SUPABASE_URL = 'https://pfpgnuuaueqpitfyfhko.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmcGdudXVhdWVxcGl0ZnlmaGtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMDM0MDMsImV4cCI6MjA4Nzc3OTQwM30.wDSbj24oklscbYUaZvhIIm6E2lD6gZrZ5K0PA9FozLA';
-let dbClient = null;
-if (window.supabase) {
-  dbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+const SUPABASE_URL = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+let dbClient = window.supabaseClient;
 
 // ============================================
 // CONFIG — uses shared GROWTH_LEVELS from pods-data.js
@@ -629,17 +626,13 @@ function renderPodCard(pod, currentUserName) {
 // PROFILE LINKS — clickable names in dashboard
 // ============================================
 function setupDashboardProfileLinks() {
+  // Profile links on dashboard are view-only — no switching allowed
   document.body.addEventListener('click', (e) => {
     const profileEl = e.target.closest('[data-profile].profile-link-dash');
     if (profileEl) {
       e.preventDefault();
       e.stopPropagation();
-      const name = profileEl.dataset.profile;
-      if (name) {
-        sessionStorage.setItem('botany-user', name);
-        // Reload the dashboard with the new user
-        window.location.reload();
-      }
+      // No-op: users can only view their own dashboard
     }
   });
 }
@@ -647,7 +640,8 @@ function setupDashboardProfileLinks() {
 // ============================================
 // LOGOUT
 // ============================================
-document.getElementById('logout-btn')?.addEventListener('click', () => {
+document.getElementById('logout-btn')?.addEventListener('click', async () => {
+  if (dbClient) await dbClient.auth.signOut();
   sessionStorage.removeItem('botany-user');
   window.location.href = 'index.html';
 });
@@ -1100,7 +1094,40 @@ function renderMyTips(tips, userName) {
 // INIT
 // ============================================
 (async function dashboardInit() {
-  const userName = sessionStorage.getItem('botany-user');
+  // Check Supabase auth session first
+  let userName = sessionStorage.getItem('botany-user');
+  if (dbClient) {
+    const { data: { session } } = await dbClient.auth.getSession();
+    if (!session) {
+      sessionStorage.removeItem('botany-user');
+      window.location.href = 'index.html';
+      return;
+    }
+    // Use display_name from auth metadata as authoritative source
+    const authName = session.user.user_metadata?.display_name;
+    if (authName) {
+      userName = authName;
+      sessionStorage.setItem('botany-user', userName);
+    }
+
+    // Check account_status — only approved users can access dashboard
+    const { data: profileCheck } = await dbClient
+      .from('profiles')
+      .select('account_status, is_admin')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profileCheck || profileCheck.account_status !== 'approved') {
+      sessionStorage.removeItem('botany-user');
+      await dbClient.auth.signOut();
+      window.location.href = 'index.html';
+      return;
+    }
+
+    // Store admin flag for later use
+    window.__botanyIsAdmin = profileCheck.is_admin === true;
+    window.__botanyUserId = session.user.id;
+  }
   if (!userName) {
     window.location.href = 'index.html';
     return;
@@ -1165,4 +1192,333 @@ function renderMyTips(tips, userName) {
   }
 
   renderDashboard(currentUser, allUsers, allData);
+
+  // Show admin panel if user is admin
+  if (window.__botanyIsAdmin) {
+    initAdminPanel();
+  }
 })();
+
+// ============================================
+// ADMIN PANEL
+// ============================================
+async function initAdminPanel() {
+  const panel = document.getElementById('admin-panel');
+  if (!panel || !dbClient) return;
+  panel.style.display = '';
+
+  // Add admin nav link
+  const navLinks = document.querySelector('.nav-links');
+  if (navLinks) {
+    const li = document.createElement('li');
+    li.innerHTML = '<a href="#admin-panel" style="color:var(--gold);">Admin</a>';
+    navLinks.appendChild(li);
+  }
+
+  // Load pending users
+  await loadPendingUsers();
+
+  // Load password reset requests
+  await loadPasswordResetRequests();
+
+  // Load all approved users
+  await loadAllUsers();
+}
+
+async function loadPendingUsers() {
+  const el = document.getElementById('admin-pending-list');
+  if (!el || !dbClient) return;
+
+  const { data: pending, error } = await dbClient
+    .from('profiles')
+    .select('id, email, display_name, created_at, account_status')
+    .eq('account_status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    el.innerHTML = '<p class="admin-error">Error loading pending users.</p>';
+    return;
+  }
+
+  if (!pending || pending.length === 0) {
+    el.innerHTML = '<p class="admin-empty">No pending users — all caught up!</p>';
+    return;
+  }
+
+  el.innerHTML = pending.map(user => {
+    const date = user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+    const name = user.display_name || user.email?.split('@')[0] || 'Unknown';
+    const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    return `
+      <div class="admin-user-row" id="admin-user-${user.id}">
+        <div class="admin-user-avatar">${initials}</div>
+        <div class="admin-user-info">
+          <div class="admin-user-name">${name}</div>
+          <div class="admin-user-email">${user.email || 'No email'}</div>
+          <div class="admin-user-date">Signed up: ${date}</div>
+        </div>
+        <div class="admin-user-actions">
+          <button class="admin-approve-btn" onclick="approveUser('${user.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            Approve
+          </button>
+          <button class="admin-reject-btn" onclick="rejectUser('${user.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Reject
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Batch email accumulator
+const batchEmails = [];
+
+async function approveUser(userId) {
+  if (!dbClient) return;
+  const row = document.getElementById(`admin-user-${userId}`);
+  if (row) row.style.opacity = '0.5';
+
+  // Fetch user info before approval
+  const { data: userInfo } = await dbClient
+    .from('profiles')
+    .select('email, display_name')
+    .eq('id', userId)
+    .single();
+
+  const { error } = await dbClient
+    .from('profiles')
+    .update({ account_status: 'approved' })
+    .eq('id', userId);
+
+  if (error) {
+    alert('Error approving user: ' + error.message);
+    if (row) row.style.opacity = '1';
+    return;
+  }
+
+  // Show email template options for this user
+  if (userInfo) {
+    showEmailTemplateOptions(userInfo.email, userInfo.display_name || userInfo.email.split('@')[0]);
+  }
+
+  // Remove from pending list with animation
+  if (row) {
+    row.style.transform = 'translateX(100%)';
+    row.style.opacity = '0';
+    setTimeout(() => {
+      row.remove();
+      const el = document.getElementById('admin-pending-list');
+      if (el && el.children.length === 0) {
+        el.innerHTML = '<p class="admin-empty">No pending users — all caught up!</p>';
+      }
+    }, 300);
+  }
+
+  // Refresh all users list
+  await loadAllUsers();
+}
+
+function showEmailTemplateOptions(email, displayName) {
+  const siteUrl = window.location.origin;
+  const subject = "Welcome to B.O.T.A.N.Y(E). — You're In!";
+  const individualBody = `Hi ${displayName},\n\nYour B.O.T.A.N.Y(E). account has been approved!\n\nVisit ${siteUrl} and sign in with your email (${email}).\n\nWelcome to the garden!`;
+
+  const hintEl = document.getElementById('admin-email-hint');
+  if (hintEl) hintEl.style.display = 'none';
+
+  const batchListEl = document.getElementById('admin-batch-list');
+  const batchEmailsEl = document.getElementById('admin-batch-emails');
+  if (batchListEl) batchListEl.style.display = '';
+
+  // Add individual template row
+  const templateRow = document.createElement('div');
+  templateRow.className = 'admin-email-row';
+  templateRow.innerHTML = `
+    <span class="admin-chip-name">${displayName} (${email})</span>
+    <button class="admin-approve-btn admin-copy-email-btn" style="padding:4px 12px;font-size:0.75rem;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy Email
+    </button>
+  `;
+  templateRow.querySelector('.admin-copy-email-btn').addEventListener('click', () => {
+    copyToClipboard(`Subject: ${subject}\n\n${individualBody}`);
+  });
+  batchEmailsEl.appendChild(templateRow);
+
+  // Add to batch
+  batchEmails.push(email);
+
+  // Update batch copy button
+  document.getElementById('admin-copy-batch').onclick = () => {
+    const batchBody = `Hi there,\n\nYour B.O.T.A.N.Y(E). account has been approved!\n\nVisit ${siteUrl} and sign in with your email.\n\nWelcome to the garden!`;
+    copyToClipboard(`Subject: ${subject}\nBCC: ${batchEmails.join(', ')}\n\n${batchBody}`);
+  };
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    // Brief visual feedback
+    const btn = document.activeElement;
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
+    }
+  } catch (e) {
+    // Fallback: show textarea
+    const fallback = document.getElementById('admin-clipboard-fallback');
+    if (fallback) {
+      fallback.value = text;
+      fallback.style.display = 'block';
+      fallback.select();
+    }
+  }
+}
+
+async function rejectUser(userId) {
+  if (!confirm('Reject this user? They will not be able to access the dashboard.')) return;
+  if (!dbClient) return;
+
+  const row = document.getElementById(`admin-user-${userId}`);
+  if (row) row.style.opacity = '0.5';
+
+  const { error } = await dbClient
+    .from('profiles')
+    .update({ account_status: 'rejected' })
+    .eq('id', userId);
+
+  if (error) {
+    alert('Error rejecting user: ' + error.message);
+    if (row) row.style.opacity = '1';
+    return;
+  }
+
+  if (row) {
+    row.style.transform = 'translateX(-100%)';
+    row.style.opacity = '0';
+    setTimeout(() => row.remove(), 300);
+  }
+}
+
+async function loadAllUsers() {
+  const el = document.getElementById('admin-all-users');
+  if (!el || !dbClient) return;
+
+  const { data: users } = await dbClient
+    .from('profiles')
+    .select('id, email, display_name, is_admin, account_status, created_at')
+    .eq('account_status', 'approved')
+    .order('created_at', { ascending: true });
+
+  if (!users || users.length === 0) {
+    el.innerHTML = '<p class="admin-empty">No approved users yet.</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="admin-users-count">${users.length} approved user${users.length !== 1 ? 's' : ''}</div>
+    <div class="admin-users-grid">
+      ${users.map(u => {
+        const name = u.display_name || u.email?.split('@')[0] || 'Unknown';
+        const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        return `
+          <div class="admin-user-chip">
+            <div class="admin-chip-avatar">${initials}</div>
+            <div class="admin-chip-info">
+              <span class="admin-chip-name">${name}</span>
+              ${u.is_admin ? '<span class="admin-chip-badge">Admin</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ============================================
+// PASSWORD RESET REQUESTS
+// ============================================
+async function loadPasswordResetRequests() {
+  const el = document.getElementById('admin-reset-list');
+  if (!el || !dbClient) return;
+
+  const { data: resets, error } = await dbClient
+    .from('profiles')
+    .select('id, email, display_name, created_at')
+    .eq('password_reset_requested', true)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    el.innerHTML = '<p class="admin-error">Error loading reset requests.</p>';
+    return;
+  }
+
+  if (!resets || resets.length === 0) {
+    el.innerHTML = '<p class="admin-empty">No password reset requests.</p>';
+    return;
+  }
+
+  el.innerHTML = resets.map(user => {
+    const name = user.display_name || user.email?.split('@')[0] || 'Unknown';
+    const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    return `
+      <div class="admin-user-row" id="admin-reset-${user.id}">
+        <div class="admin-user-avatar">${initials}</div>
+        <div class="admin-user-info">
+          <div class="admin-user-name">${name}</div>
+          <div class="admin-user-email">${user.email || 'No email'}</div>
+        </div>
+        <div class="admin-user-actions">
+          <button class="admin-approve-btn" onclick="handlePasswordReset('${user.id}', '${user.email}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Reset Password
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function handlePasswordReset(userId, email) {
+  if (!dbClient) return;
+  if (!confirm(`Reset password for ${email}? This will generate a recovery link.`)) return;
+
+  const row = document.getElementById(`admin-reset-${userId}`);
+  if (row) row.style.opacity = '0.5';
+
+  try {
+    // Use Supabase auth admin to generate recovery link
+    // Note: This requires the anon key to have permission, or use a service role via edge function
+    // For now, we use the client-side resetPasswordForEmail which sends an email
+    const { error: resetError } = await dbClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/index.html'
+    });
+
+    if (resetError) {
+      alert('Error resetting password: ' + resetError.message);
+      if (row) row.style.opacity = '1';
+      return;
+    }
+
+    // Clear the reset request flag
+    await dbClient
+      .from('profiles')
+      .update({ password_reset_requested: false })
+      .eq('id', userId);
+
+    // Remove from list with animation
+    if (row) {
+      row.innerHTML = `<p style="color:#4ade80;padding:0.5rem;">Password reset email sent to ${email}</p>`;
+      setTimeout(() => {
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
+      }, 3000);
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+    if (row) row.style.opacity = '1';
+  }
+}

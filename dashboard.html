@@ -12,13 +12,11 @@
   <link rel="stylesheet" href="dashboard.css">
   <link rel="stylesheet" href="feedback-widget.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabase-config.js"></script>
 </head>
 <body>
-  <!-- Gate + auth check -->
+  <!-- Auth check — redirect to gate if no session -->
   <script>
-    if (sessionStorage.getItem('botany-gate') !== 'true') {
-      window.location.href = 'gate.html';
-    }
     if (!sessionStorage.getItem('botany-user')) {
       window.location.href = 'index.html';
     }
@@ -168,6 +166,67 @@
         Your Pod
       </h2>
       <div id="dash-pod-card"></div>
+    </div>
+  </section>
+
+  <!-- Admin Panel (visible to admins only) -->
+  <section class="dash-section" id="admin-panel" style="display:none">
+    <div class="container">
+      <h2 class="dash-section-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Admin Panel
+      </h2>
+
+      <!-- User Approvals -->
+      <div class="admin-card">
+        <h3 class="admin-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>
+          Pending User Approvals
+        </h3>
+        <div id="admin-pending-list" class="admin-pending-list">
+          <p class="admin-loading">Loading pending users…</p>
+        </div>
+      </div>
+
+      <!-- Email Templates (shown after approval) -->
+      <div class="admin-card" style="margin-top:1.5rem;" id="admin-email-templates">
+        <h3 class="admin-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          Email Templates
+        </h3>
+        <p class="admin-empty" id="admin-email-hint">Approve users above to generate email templates.</p>
+        <div id="admin-batch-list" class="admin-batch-list" style="display:none;">
+          <div id="admin-batch-emails"></div>
+          <button class="admin-approve-btn admin-copy-batch-btn" id="admin-copy-batch" style="margin-top:0.75rem;width:100%;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Batch BCC Email
+          </button>
+        </div>
+        <!-- Clipboard fallback textarea (hidden by default) -->
+        <textarea id="admin-clipboard-fallback" class="admin-clipboard-fallback" style="display:none;" readonly></textarea>
+      </div>
+
+      <!-- Password Reset Requests -->
+      <div class="admin-card" style="margin-top:1.5rem;">
+        <h3 class="admin-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Password Reset Requests
+        </h3>
+        <div id="admin-reset-list" class="admin-pending-list">
+          <p class="admin-loading">Loading reset requests…</p>
+        </div>
+      </div>
+
+      <!-- All Users Overview -->
+      <div class="admin-card" style="margin-top:1.5rem;">
+        <h3 class="admin-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          All Approved Users
+        </h3>
+        <div id="admin-all-users" class="admin-all-users"></div>
+      </div>
     </div>
   </section>
 

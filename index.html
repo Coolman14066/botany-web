@@ -19,16 +19,87 @@
 
   <!-- Supabase Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabase-config.js"></script>
 </head>
 
 <body>
-  <!-- Gate check -->
-  <script>
-    if (sessionStorage.getItem('botany-gate') !== 'true') {
-      window.location.href = 'gate.html';
-    }
-  </script>
+  <!-- Auth Gate (CSS-first: visible by default, hidden after auth) -->
+  <div id="auth-gate" class="auth-gate">
+    <div class="gate-orb gate-orb-1"></div>
+    <div class="gate-orb gate-orb-2"></div>
 
+    <div class="gate-container">
+      <div class="gate-logo">&gt;</div>
+      <h1 class="gate-title">B.O.T.A.N.Y(E).</h1>
+      <p class="gate-subtitle">Cultivating the future with artificial intelligence</p>
+
+      <!-- Step 1: Email -->
+      <div id="gate-step-email" class="gate-step active">
+        <input type="email" id="gate-email" class="gate-input" placeholder="your.name@accenture.com" autocomplete="email" spellcheck="false">
+        <button id="gate-continue" class="gate-btn gate-btn-primary">Continue</button>
+        <div id="gate-email-error" class="gate-error"></div>
+      </div>
+
+      <!-- Step 2a: Password (approved user) -->
+      <div id="gate-step-password" class="gate-step">
+        <p id="gate-welcome-back" class="gate-welcome">Welcome back!</p>
+        <input type="password" id="gate-password" class="gate-input" placeholder="Password" autocomplete="current-password">
+        <button id="gate-signin" class="gate-btn gate-btn-primary">Sign In</button>
+        <button id="gate-forgot-pw" class="gate-link-btn">Forgot password?</button>
+        <div id="gate-signin-error" class="gate-error"></div>
+      </div>
+
+      <!-- Step 2b: Create Account (new user) -->
+      <div id="gate-step-signup" class="gate-step">
+        <h2 class="gate-step-title">Create your account</h2>
+        <p class="gate-step-detail">Email: <strong id="gate-signup-email-display"></strong></p>
+        <input type="password" id="gate-signup-password" class="gate-input" placeholder="Password (min 6 chars)" autocomplete="new-password">
+        <button id="gate-signup-submit" class="gate-btn gate-btn-primary">Create Account</button>
+        <div id="gate-signup-error" class="gate-error"></div>
+      </div>
+
+      <!-- Step: Claim Profile (first-time approved user) -->
+      <div id="gate-step-claim" class="gate-step">
+        <h2 class="gate-step-title">Claim your profile</h2>
+        <p class="gate-step-detail">Search for your name to link your existing submissions</p>
+        <input type="text" id="gate-claim-search" class="gate-input" placeholder="Search your name..." autocomplete="off" spellcheck="false">
+        <div id="gate-claim-results" class="gate-claim-results"></div>
+        <button id="gate-claim-skip" class="gate-link-btn">Skip — start fresh</button>
+      </div>
+
+      <!-- Step: Pending/Waitlist -->
+      <div id="gate-step-pending" class="gate-step">
+        <div class="gate-plant-sprite"></div>
+        <h2 class="gate-step-title">You're on the list!</h2>
+        <p class="gate-fun-fact" id="gate-fun-fact"></p>
+        <p class="gate-step-detail">An admin will review your request shortly.</p>
+      </div>
+
+      <!-- Step: Rejected -->
+      <div id="gate-step-rejected" class="gate-step">
+        <h2 class="gate-step-title">Account not approved</h2>
+        <p class="gate-step-detail">Contact the B.O.T.A.N.Y(E). team for assistance.</p>
+      </div>
+
+      <!-- Step: Forgot Password -->
+      <div id="gate-step-forgot" class="gate-step">
+        <h2 class="gate-step-title">Password Reset</h2>
+        <p class="gate-step-detail">We'll notify an admin to reset your password.</p>
+        <button id="gate-forgot-submit" class="gate-btn gate-btn-primary">Request Reset</button>
+        <div id="gate-forgot-status" class="gate-status"></div>
+      </div>
+
+      <!-- Connection error -->
+      <div id="gate-step-error" class="gate-step">
+        <h2 class="gate-step-title">Unable to connect</h2>
+        <p class="gate-step-detail">Could not reach the server. Please try again.</p>
+        <button id="gate-retry" class="gate-btn gate-btn-primary">Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content (hidden by default via CSS, revealed after auth) -->
+  <div id="main-content" class="main-content-gated">
   <!-- Header -->
   <header class="header">
     <div class="container header-content">
@@ -47,7 +118,7 @@
         </ul>
       </nav>
       <div class="header-actions">
-        <a href="#join" class="btn btn-outline-header">Join B.O.T.A.N.Y(E).</a>
+        <a href="#join" class="btn btn-outline-header">Join Us</a>
         <a href="#submit" class="btn btn-primary btn-header">Submit Use Case</a>
         <button class="btn btn-outline-header btn-login" id="login-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -855,24 +926,7 @@
   <!-- Use Case Detail Modal -->
   <div id="usecase-modal" class="usecase-modal" aria-hidden="true"></div>
 
-  <!-- Login Modal -->
-  <div id="login-modal" class="login-modal" aria-hidden="true">
-    <div class="login-backdrop"></div>
-    <div class="login-panel">
-      <button class="login-close" id="login-close">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-      <div class="login-logo">&gt;</div>
-      <h2 class="login-title">Welcome back</h2>
-      <p class="login-subtitle">Enter your name to access your personal dashboard</p>
-      <div class="login-input-wrap">
-        <svg class="login-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input type="text" id="login-search" class="login-input" placeholder="Search your name…" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="login-results" id="login-results"></div>
-      <p class="login-hint">Your name must match a submission in the B.O.T.A.N.Y(E). tracker</p>
-    </div>
-  </div>
+  </div><!-- /main-content-gated -->
 
   <!-- JavaScript -->
   <script src="/pods-data.js"></script>

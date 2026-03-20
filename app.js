@@ -52,16 +52,11 @@ const CONFIG = {
 };
 
 // ============================================
-// SUPABASE CONFIG
+// SUPABASE CONFIG — loaded from /supabase-config.js
 // ============================================
-// ⚠️  PASTE YOUR SUPABASE PROJECT URL AND ANON KEY BELOW
-const SUPABASE_URL = 'https://pfpgnuuaueqpitfyfhko.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmcGdudXVhdWVxcGl0ZnlmaGtvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMDM0MDMsImV4cCI6MjA4Nzc3OTQwM30.wDSbj24oklscbYUaZvhIIm6E2lD6gZrZ5K0PA9FozLA';
-let supabase = null;
-
-if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+const SUPABASE_URL = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+let supabase = window.supabaseClient;
 
 // ============================================
 // DATA STORAGE
@@ -70,10 +65,21 @@ let allData = [];
 let processedUsers = [];
 let toolStats = {};
 
-// Global profile navigation — used across pods, leaderboard, gallery
-function viewProfile(name) {
-  sessionStorage.setItem('botany-user', name);
-  window.location.href = 'dashboard.html';
+// Global profile navigation — requires auth; only your own profile
+async function viewProfile(name) {
+  if (!supabase) return;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
+    const myName = session.user.user_metadata?.display_name || session.user.email;
+    if (myName.toLowerCase().trim() === name.toLowerCase().trim()) {
+      sessionStorage.setItem('botany-user', myName);
+      window.location.href = 'dashboard.html';
+    } else {
+      alert('You can only view your own dashboard. Please log in as ' + name + ' to see their profile.');
+    }
+  } else {
+    // Not logged in — gate is already visible, no action needed
+  }
 }
 let barrierStats = {};
 
@@ -1598,130 +1604,422 @@ function setupIntakeForm() {
 }
 
 // ============================================
-// LOGIN MODAL
+// AUTH GATE (Full-screen gate-first authentication)
 // ============================================
-function setupLoginModal() {
-  const modal = document.getElementById('login-modal');
-  const btn = document.getElementById('login-btn');
-  const btnText = document.getElementById('login-btn-text');
-  const closeBtn = document.getElementById('login-close');
-  const backdrop = modal?.querySelector('.login-backdrop');
-  const searchInput = document.getElementById('login-search');
-  const resultsEl = document.getElementById('login-results');
+const PLANT_FUN_FACTS = [
+  "Bamboo can grow up to 35 inches in a single day.",
+  "The first AI program was written in 1951.",
+  "Sunflowers track the sun across the sky — it's called heliotropism.",
+  "The term 'artificial intelligence' was coined in 1956.",
+  "A single oak tree can produce about 70,000 acorns per year.",
+  "The first neural network was simulated on a computer in 1954.",
+  "Some plants can communicate via underground fungal networks.",
+  "Alan Turing proposed the Turing Test in 1950."
+];
 
-  if (!modal || !btn) return;
+function setupAuthGate() {
+  const gate = document.getElementById('auth-gate');
+  const mainContent = document.getElementById('main-content');
+  const loginBtn = document.getElementById('login-btn');
 
-  // Check if already logged in
-  const currentUser = sessionStorage.getItem('botany-user');
-  if (currentUser) {
-    btnText.textContent = 'My Dashboard';
-    btn.addEventListener('click', () => {
-      window.location.href = 'dashboard.html';
-    });
-    return;
+  if (!gate || !mainContent) return;
+
+  // Cache current email for multi-step flow
+  let currentEmail = '';
+
+  // ---- Step navigation ----
+  function showStep(stepId) {
+    gate.querySelectorAll('.gate-step').forEach(s => s.classList.remove('active'));
+    const step = document.getElementById(`gate-step-${stepId}`);
+    if (step) step.classList.add('active');
+
+    // Set fun fact for pending step
+    if (stepId === 'pending') {
+      const factEl = document.getElementById('gate-fun-fact');
+      if (factEl) factEl.textContent = PLANT_FUN_FACTS[Math.floor(Math.random() * PLANT_FUN_FACTS.length)];
+    }
   }
 
-  // Open modal
-  btn.addEventListener('click', () => {
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
-    setTimeout(() => searchInput?.focus(), 300);
-  });
+  // ---- Reveal content (auth success) ----
+  function revealContent(displayName) {
+    gate.classList.add('hidden');
+    mainContent.classList.add('revealed');
+    sessionStorage.setItem('botany-user', displayName);
 
-  // Close modal
-  function closeModal() {
-    modal.classList.remove('active');
-    modal.setAttribute('aria-hidden', 'true');
-    if (searchInput) searchInput.value = '';
-    if (resultsEl) resultsEl.innerHTML = '';
+    // Transform login button into profile avatar
+    if (loginBtn) {
+      const initials = displayName.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 2);
+      loginBtn.innerHTML = `
+        <span class="header-profile-avatar">${initials}</span>
+        <span id="login-btn-text">${displayName.split(' ')[0]}</span>
+      `;
+      loginBtn.classList.remove('btn-login');
+      loginBtn.classList.add('btn-profile');
+      loginBtn.title = 'View your dashboard';
+      loginBtn.onclick = () => {
+        sessionStorage.setItem('botany-user', displayName);
+        window.location.href = 'dashboard.html';
+      };
+    }
+
+    // Remove gate from DOM after animation
+    setTimeout(() => gate.remove(), 700);
   }
-  closeBtn?.addEventListener('click', closeModal);
-  backdrop?.addEventListener('click', closeModal);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+
+  // ---- Check session on load ----
+  async function checkSession() {
+    if (!supabase) {
+      showStep('email');
+      return;
+    }
+
+    try {
+      const sessionPromise = supabase.auth.getSession();
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      const { data: { session } } = await Promise.race([sessionPromise, timeout]);
+
+      if (!session) {
+        showStep('email');
+        return;
+      }
+
+      // Have a session — check approval
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('account_status, display_name')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile?.account_status === 'approved') {
+        const displayName = session.user.user_metadata?.display_name || profile?.display_name || session.user.email.split('@')[0];
+        revealContent(displayName);
+      } else if (profile?.account_status === 'pending') {
+        showStep('pending');
+      } else {
+        await supabase.auth.signOut();
+        showStep('email');
+      }
+    } catch (e) {
+      console.warn('Auth gate session check failed:', e);
+      if (e.message === 'timeout') {
+        showStep('error');
+      } else {
+        showStep('email');
+      }
+    }
+  }
+
+  checkSession();
+
+  // ---- Step 1: Email continue ----
+  document.getElementById('gate-continue')?.addEventListener('click', handleEmailContinue);
+  document.getElementById('gate-email')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleEmailContinue();
   });
 
-  // Search and autocomplete — searches BOTH CSV users AND pod members
-  // Build a combined search pool so everyone can log in
-  function buildSearchPool() {
-    const pool = new Map();
+  async function handleEmailContinue() {
+    const emailInput = document.getElementById('gate-email');
+    const errorEl = document.getElementById('gate-email-error');
+    const email = emailInput.value.trim().toLowerCase();
+    errorEl.textContent = '';
 
-    // Add all CSV/processed users with their full data
-    processedUsers.forEach(u => {
-      pool.set(u.name.toLowerCase().trim(), {
-        name: u.name,
-        tier: u.tier.name,
-        totalHours: u.totalHours,
-        useCaseCount: u.useCaseCount,
-        source: 'data'
-      });
-    });
+    if (!email) { errorEl.textContent = 'Please enter your email'; return; }
 
-    // Add all pod members who aren't already in the pool
-    const allPods = [...PHASE_3_PODS, ...PHASE_2_PODS];
-    allPods.forEach(pod => {
-      [...pod.leads, ...pod.members].forEach(name => {
-        const key = name.toLowerCase().trim();
-        if (!pool.has(key)) {
-          pool.set(key, {
-            name: name,
-            tier: 'Moss',
-            totalHours: 0,
-            useCaseCount: 0,
-            source: 'pod'
-          });
+    currentEmail = email;
+
+    if (!supabase) {
+      showStep('error');
+      return;
+    }
+
+    const btn = document.getElementById('gate-continue');
+    btn.disabled = true;
+    btn.textContent = 'Checking…';
+
+    try {
+      const lookupPromise = supabase
+        .from('profiles')
+        .select('email, account_status')
+        .eq('email', email)
+        .single();
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+      const { data: profile, error } = await Promise.race([lookupPromise, timeout]);
+
+      btn.disabled = false;
+      btn.textContent = 'Continue';
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows found, which is expected for new users
+        if (error.message === 'timeout') {
+          showStep('error');
+          return;
         }
-      });
-    });
+      }
 
-    return Array.from(pool.values());
+      if (profile) {
+        if (profile.account_status === 'approved') {
+          document.getElementById('gate-welcome-back').textContent = `Welcome back!`;
+          showStep('password');
+          setTimeout(() => document.getElementById('gate-password')?.focus(), 200);
+        } else if (profile.account_status === 'pending') {
+          showStep('pending');
+        } else if (profile.account_status === 'rejected') {
+          showStep('rejected');
+        } else {
+          // Unknown status — treat as pending
+          showStep('pending');
+        }
+      } else {
+        // Not found — new user signup
+        document.getElementById('gate-signup-email-display').textContent = email;
+        showStep('signup');
+        setTimeout(() => document.getElementById('gate-signup-password')?.focus(), 200);
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Continue';
+      if (e.message === 'timeout') {
+        showStep('error');
+      } else {
+        errorEl.textContent = 'Something went wrong. Please try again.';
+      }
+    }
   }
 
-  const searchPool = buildSearchPool();
+  // ---- Step 2a: Sign in ----
+  document.getElementById('gate-signin')?.addEventListener('click', handleSignIn);
+  document.getElementById('gate-password')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSignIn();
+  });
 
-  let debounceTimer;
-  searchInput?.addEventListener('input', () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      const query = searchInput.value.trim().toLowerCase();
-      if (query.length < 2) {
-        resultsEl.innerHTML = '';
+  async function handleSignIn() {
+    const password = document.getElementById('gate-password').value;
+    const errorEl = document.getElementById('gate-signin-error');
+    const btn = document.getElementById('gate-signin');
+    errorEl.textContent = '';
+
+    if (!password) { errorEl.textContent = 'Please enter your password'; return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: currentEmail,
+        password
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+
+      if (error) {
+        errorEl.textContent = error.message === 'Invalid login credentials'
+          ? 'Wrong email or password'
+          : error.message;
         return;
       }
-      const matches = searchPool.filter(u =>
-        u.name.toLowerCase().includes(query)
-      ).slice(0, 8);
 
-      if (matches.length === 0) {
-        resultsEl.innerHTML = '<p class="login-no-results">No matching names found</p>';
+      // Check if first-time (no display_name set yet)
+      const displayName = data.user.user_metadata?.display_name;
+
+      if (!displayName) {
+        // First-time approved user — show claim step
+        showClaimStep(data.user);
+      } else {
+        revealContent(displayName);
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      errorEl.textContent = 'Connection error. Please try again.';
+    }
+  }
+
+  // ---- Step 2b: Sign up ----
+  document.getElementById('gate-signup-submit')?.addEventListener('click', handleSignUp);
+  document.getElementById('gate-signup-password')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleSignUp();
+  });
+
+  async function handleSignUp() {
+    const password = document.getElementById('gate-signup-password').value;
+    const errorEl = document.getElementById('gate-signup-error');
+    const btn = document.getElementById('gate-signup-submit');
+    errorEl.textContent = '';
+
+    if (!currentEmail.toLowerCase().endsWith('@accenture.com')) {
+      errorEl.textContent = 'Please use your @accenture.com email address';
+      return;
+    }
+    if (!password || password.length < 6) {
+      errorEl.textContent = 'Password must be at least 6 characters';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account…';
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: currentEmail,
+        password,
+        options: { data: { display_name: '' } }
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+
+      if (error) {
+        errorEl.textContent = error.message;
         return;
       }
 
-      resultsEl.innerHTML = matches.map(user => {
-        const initials = getInitials(user.name);
-        const subtitle = user.source === 'pod'
-          ? `${user.tier} · Pod member`
-          : `${user.tier} · ${user.totalHours}h saved · ${user.useCaseCount} use cases`;
-        return `
-          <div class="login-result-item" data-name="${user.name}">
-            <div class="login-result-avatar">${initials}</div>
-            <div>
-              <div class="login-result-name">${user.name}</div>
-              <div class="login-result-tier">${subtitle}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
+      if (data.user) {
+        // Show claim step
+        showClaimStep(data.user);
+      }
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      errorEl.textContent = 'Connection error. Please try again.';
+    }
+  }
 
-      // Click handler for results
-      resultsEl.querySelectorAll('.login-result-item').forEach(item => {
-        item.addEventListener('click', () => {
-          const name = item.dataset.name;
-          sessionStorage.setItem('botany-user', name);
-          window.location.href = 'dashboard.html';
+  // ---- Claim Profile Step ----
+  function showClaimStep(user) {
+    showStep('claim');
+    const searchInput = document.getElementById('gate-claim-search');
+    const resultsEl = document.getElementById('gate-claim-results');
+
+    function buildSearchPool() {
+      const pool = new Map();
+      processedUsers.forEach(u => {
+        pool.set(u.name.toLowerCase().trim(), {
+          name: u.name,
+          tier: u.tier.name,
+          totalHours: u.totalHours,
+          useCaseCount: u.useCaseCount,
+          source: 'data'
         });
       });
-    }, 200);
+      const allPods = [...PHASE_3_PODS, ...PHASE_2_PODS];
+      allPods.forEach(pod => {
+        [...pod.leads, ...pod.members].forEach(name => {
+          const key = name.toLowerCase().trim();
+          if (!pool.has(key)) {
+            pool.set(key, { name, tier: 'Moss', totalHours: 0, useCaseCount: 0, source: 'pod' });
+          }
+        });
+      });
+      return Array.from(pool.values());
+    }
+
+    const searchPool = buildSearchPool();
+    let debounceTimer;
+
+    searchInput?.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const query = searchInput.value.trim().toLowerCase();
+        if (query.length < 2) { resultsEl.innerHTML = ''; return; }
+
+        const matches = searchPool.filter(u => u.name.toLowerCase().includes(query)).slice(0, 8);
+        if (matches.length === 0) {
+          resultsEl.innerHTML = '<p class="gate-no-results">No matching names found</p>';
+          return;
+        }
+
+        resultsEl.innerHTML = matches.map(u => {
+          const initials = getInitials(u.name);
+          const subtitle = u.source === 'pod'
+            ? `${u.tier} · Pod member`
+            : `${u.tier} · ${u.totalHours}h saved · ${u.useCaseCount} use cases`;
+          return `
+            <div class="gate-result-item" data-name="${u.name}">
+              <div class="gate-result-avatar">${initials}</div>
+              <div>
+                <div class="gate-result-name">${u.name}</div>
+                <div class="gate-result-tier">${subtitle}</div>
+              </div>
+            </div>`;
+        }).join('');
+
+        resultsEl.querySelectorAll('.gate-result-item').forEach(item => {
+          item.addEventListener('click', async () => {
+            const name = item.dataset.name;
+            try {
+              await supabase.auth.updateUser({ data: { display_name: name } });
+              await handlePostClaim(user, name);
+            } catch (e) {
+              resultsEl.innerHTML = '<p class="gate-error">Network error — <button class="gate-link-btn" onclick="location.reload()">Retry</button></p>';
+            }
+          });
+        });
+      }, 200);
+    });
+
+    // Skip — start with a fresh profile
+    document.getElementById('gate-claim-skip')?.addEventListener('click', async () => {
+      const displayName = user.email.split('@')[0];
+      try {
+        await supabase.auth.updateUser({ data: { display_name: displayName } });
+        await handlePostClaim(user, displayName);
+      } catch (e) {
+        showStep('error');
+      }
+    });
+
+    setTimeout(() => searchInput?.focus(), 200);
+  }
+
+  // ---- Post-Claim: Check approval status ----
+  async function handlePostClaim(user, displayName) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('account_status')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.account_status === 'approved') {
+      revealContent(displayName);
+    } else {
+      showStep('pending');
+    }
+  }
+
+  // ---- Forgot password ----
+  document.getElementById('gate-forgot-pw')?.addEventListener('click', () => {
+    showStep('forgot');
+  });
+
+  document.getElementById('gate-forgot-submit')?.addEventListener('click', async () => {
+    const statusEl = document.getElementById('gate-forgot-status');
+    const btn = document.getElementById('gate-forgot-submit');
+    btn.disabled = true;
+    btn.textContent = 'Requesting…';
+
+    try {
+      // Store reset request in profiles or a config table
+      await supabase
+        .from('profiles')
+        .update({ password_reset_requested: true })
+        .eq('email', currentEmail);
+
+      statusEl.textContent = 'Reset request submitted! An admin will help you shortly.';
+      statusEl.style.color = '#4ade80';
+      btn.style.display = 'none';
+    } catch (e) {
+      statusEl.textContent = 'Could not submit request. Please try again.';
+      statusEl.style.color = '#f87171';
+      btn.disabled = false;
+      btn.textContent = 'Request Reset';
+    }
+  });
+
+  // ---- Connection error retry ----
+  document.getElementById('gate-retry')?.addEventListener('click', () => {
+    showStep('email');
+    checkSession();
   });
 }
 
@@ -2024,7 +2322,7 @@ async function init() {
     setupPodPhaseToggle();
     setupPodIdeaModal();
     setupIntakeForm();
-    setupLoginModal();
+    setupAuthGate();
     setupProfileLinks();
 
     console.log('B.O.T.A.N.Y(E). AI Showcase initialized successfully!');
