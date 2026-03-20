@@ -64,6 +64,7 @@ let supabase = window.supabaseClient;
 let allData = [];
 let processedUsers = [];
 let toolStats = {};
+let profileComplete = false;
 
 // Global profile navigation — requires auth; only your own profile
 async function viewProfile(name) {
@@ -1594,6 +1595,26 @@ function setupIntakeForm() {
       form.querySelectorAll('.intake-step').forEach(s => s.classList.remove('active'));
       document.getElementById('intake-success').style.display = 'flex';
       document.querySelector('.step-indicator').style.display = 'none';
+
+      // Mark profile as complete and sync UI in real-time
+      profileComplete = true;
+      applyProfileState(sessionStorage.getItem('botany-user') || '', null);
+
+      // Sync key fields to profiles table
+      if (supabase) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            await supabase.from('profiles').update({
+              location: payload.office_location,
+              role: payload.intake_role,
+              avg_comfort: payload.ai_comfort
+            }).eq('id', session.user.id);
+          }
+        } catch (e) {
+          console.warn('Profile sync failed:', e);
+        }
+      }
     } catch (error) {
       console.error('Intake submission error:', error);
       submitBtn.disabled = false;
@@ -1601,6 +1622,216 @@ function setupIntakeForm() {
       alert('There was an error submitting. Please try again.');
     }
   });
+}
+
+// ============================================
+// PROFILE STATE (Complete Your Profile system)
+// ============================================
+function applyProfileState(displayName, user) {
+  const joinSection = document.getElementById('join');
+
+  if (profileComplete) {
+    // Hide all "Join Us" / "Complete Profile" touchpoints
+    document.querySelectorAll('.header-actions a[href="#join"]').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.hero-cta a[href="#join"]').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.about-cta a[href="#join"]').forEach(el => el.style.display = 'none');
+    if (joinSection) joinSection.style.display = 'none';
+    document.querySelectorAll('.footer-cta a[href="#join"]').forEach(el => {
+      const cta = el.closest('.footer-cta');
+      if (cta) cta.style.display = 'none';
+    });
+    document.querySelectorAll('.footer-link[href="#join"]').forEach(el => {
+      el.style.display = 'none';
+      const prev = el.previousElementSibling;
+      if (prev && prev.classList.contains('footer-sep')) prev.style.display = 'none';
+    });
+
+    // Inject "Refer a Friend" button into header actions
+    const headerActions = document.querySelector('.header-actions');
+    if (headerActions && !document.getElementById('refer-friend-btn-main')) {
+      const referBtn = document.createElement('button');
+      referBtn.id = 'refer-friend-btn-main';
+      referBtn.className = 'btn btn-outline-header';
+      referBtn.textContent = 'Refer a Friend';
+      referBtn.addEventListener('click', () => openReferralModal());
+      headerActions.insertBefore(referBtn, headerActions.firstChild);
+    }
+
+    // Dismiss any existing toast
+    const existingToast = document.querySelector('.profile-nudge-toast');
+    if (existingToast) existingToast.remove();
+  } else {
+    // Rename "Join Us" to "Complete Profile"
+    document.querySelectorAll('.header-actions a[href="#join"]').forEach(el => {
+      el.textContent = 'Complete Profile';
+    });
+    document.querySelectorAll('.hero-cta a[href="#join"]').forEach(el => {
+      el.innerHTML = 'Complete Profile &rarr;';
+    });
+    document.querySelectorAll('.about-cta a[href="#join"]').forEach(el => {
+      el.innerHTML = 'Complete Profile &rarr;';
+    });
+
+    // Update join section title
+    if (joinSection) {
+      const titleEl = joinSection.querySelector('.section-title h2');
+      if (titleEl) titleEl.textContent = 'Complete Your Profile';
+      const subtitle = joinSection.querySelector('.join-subtitle');
+      if (subtitle) subtitle.textContent = 'Tell us about yourself so we can match you with the right pod.';
+    }
+
+    // Footer
+    document.querySelectorAll('.footer-cta a[href="#join"]').forEach(el => {
+      el.innerHTML = 'Complete your profile to join B.O.T.A.N.Y(E). &rarr;';
+    });
+    document.querySelectorAll('.footer-link[href="#join"]').forEach(el => {
+      el.textContent = 'Complete Profile';
+    });
+
+    // Pre-fill name and email from auth data
+    if (user) {
+      const nameInput = document.getElementById('intake-name');
+      const emailInput = document.getElementById('intake-email');
+      if (nameInput) {
+        nameInput.value = displayName;
+        nameInput.readOnly = true;
+      }
+      if (emailInput) {
+        emailInput.value = user.email;
+        emailInput.readOnly = true;
+      }
+    }
+
+    // Show toast nudge
+    showProfileNudgeToast();
+  }
+}
+
+function showProfileNudgeToast() {
+  if (sessionStorage.getItem('botany-nudge-dismissed')) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'profile-nudge-toast';
+  toast.innerHTML = `
+    <span class="nudge-text">Welcome! Complete your profile so we can match you with a pod.</span>
+    <a href="#join" class="nudge-btn">Complete Profile</a>
+    <button class="nudge-dismiss" aria-label="Dismiss">&times;</button>
+  `;
+  document.body.appendChild(toast);
+
+  // Slide in after gate animation
+  setTimeout(() => toast.classList.add('visible'), 1200);
+
+  const dismiss = () => {
+    toast.classList.remove('visible');
+    sessionStorage.setItem('botany-nudge-dismissed', '1');
+    setTimeout(() => toast.remove(), 400);
+  };
+
+  toast.querySelector('.nudge-dismiss').addEventListener('click', dismiss);
+  toast.querySelector('.nudge-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    dismiss();
+    document.getElementById('join')?.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  // Auto-dismiss after 8s
+  setTimeout(dismiss, 8000);
+}
+
+// ============================================
+// REFERRAL MODAL (shared with dashboard.js)
+// ============================================
+function openReferralModal() {
+  // Remove any existing modal
+  document.getElementById('referral-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'referral-modal';
+  modal.className = 'referral-modal';
+  modal.innerHTML = `
+    <div class="referral-card">
+      <button class="referral-close" onclick="document.getElementById('referral-modal').remove()">&times;</button>
+      <h3 style="font-family:var(--font-display);font-size:1.3rem;margin-bottom:0.25rem;">Refer a Friend</h3>
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1.5rem;">Invite a colleague to join B.O.T.A.N.Y(E). They'll need admin approval before their account is activated.</p>
+      <input type="email" id="referral-email" class="gate-input" placeholder="colleague@accenture.com" autocomplete="email">
+      <textarea id="referral-note" class="gate-input" placeholder="Optional note for the admin (e.g. why they'd be great)" rows="2" style="resize:vertical;min-height:60px;"></textarea>
+      <button id="referral-submit" class="gate-btn gate-btn-primary" onclick="handleReferralSubmit()">Send Referral</button>
+      <div id="referral-status" style="font-size:0.85rem;text-align:center;margin-top:0.75rem;min-height:1.2em;"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('referral-email')?.focus(), 200);
+}
+
+async function handleReferralSubmit() {
+  const emailInput = document.getElementById('referral-email');
+  const noteInput = document.getElementById('referral-note');
+  const statusEl = document.getElementById('referral-status');
+  const btn = document.getElementById('referral-submit');
+  if (!emailInput || !statusEl) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const note = noteInput?.value?.trim() || '';
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+
+  if (!email) { statusEl.textContent = 'Please enter an email.'; statusEl.style.color = '#f87171'; return; }
+  if (!email.endsWith('@accenture.com')) { statusEl.textContent = 'Must be an @accenture.com email.'; statusEl.style.color = '#f87171'; return; }
+
+  const client = supabase;
+  if (!client) { statusEl.textContent = 'Connection error.'; statusEl.style.color = '#f87171'; return; }
+
+  const { data: { session } } = await client.auth.getSession();
+  if (!session) { statusEl.textContent = 'Please log in first.'; statusEl.style.color = '#f87171'; return; }
+
+  if (email === session.user.email?.toLowerCase()) {
+    statusEl.textContent = "You can't refer yourself!";
+    statusEl.style.color = '#f87171';
+    return;
+  }
+
+  const { data: existingUser } = await client.from('profiles').select('id').eq('email', email).single();
+  if (existingUser) { statusEl.textContent = 'This person already has an account!'; statusEl.style.color = '#f87171'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  const referrerName = session.user.user_metadata?.display_name || session.user.email.split('@')[0];
+
+  const { error } = await client.from('email_whitelist').insert({
+    email,
+    added_by: session.user.id,
+    source: 'referral',
+    status: 'pending',
+    referrer_name: referrerName,
+    referral_note: note
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Send Referral';
+
+  if (error) {
+    if (error.code === '23505') {
+      const { data: existing } = await client.from('email_whitelist').select('status').eq('email', email).single();
+      if (existing?.status === 'pending') {
+        statusEl.textContent = 'Already referred — awaiting admin review.';
+      } else if (existing?.status === 'approved') {
+        statusEl.textContent = 'Already approved! They just need to sign up.';
+      } else {
+        statusEl.textContent = 'This email has already been referred.';
+      }
+    } else {
+      statusEl.textContent = 'Error: ' + error.message;
+    }
+    statusEl.style.color = '#f87171';
+    return;
+  }
+
+  statusEl.textContent = 'Referral sent! An admin will review it soon.';
+  statusEl.style.color = '#4ade80';
+  emailInput.value = '';
+  if (noteInput) noteInput.value = '';
 }
 
 // ============================================
@@ -1641,7 +1872,7 @@ function setupAuthGate() {
   }
 
   // ---- Reveal content (auth success) ----
-  function revealContent(displayName) {
+  async function revealContent(displayName) {
     gate.classList.add('hidden');
     mainContent.classList.add('revealed');
     sessionStorage.setItem('botany-user', displayName);
@@ -1660,6 +1891,25 @@ function setupAuthGate() {
         sessionStorage.setItem('botany-user', displayName);
         window.location.href = 'dashboard.html';
       };
+    }
+
+    // Check profile completion state
+    try {
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: intake } = await supabase
+            .from('intake_submissions')
+            .select('id')
+            .eq('email', session.user.email)
+            .limit(1);
+          profileComplete = intake && intake.length > 0;
+          applyProfileState(displayName, session.user);
+        }
+      }
+    } catch (e) {
+      console.warn('Profile state check failed:', e);
+      applyProfileState(displayName, null);
     }
 
     // Remove gate from DOM after animation
@@ -1692,7 +1942,7 @@ function setupAuthGate() {
 
       if (profile?.account_status === 'approved') {
         const displayName = session.user.user_metadata?.display_name || profile?.display_name || session.user.email.split('@')[0];
-        revealContent(displayName);
+        await revealContent(displayName);
       } else if (profile?.account_status === 'pending') {
         showStep('pending');
       } else {
@@ -1826,7 +2076,7 @@ function setupAuthGate() {
         // First-time approved user — show claim step
         showClaimStep(data.user);
       } else {
-        revealContent(displayName);
+        await revealContent(displayName);
       }
     } catch (e) {
       btn.disabled = false;
@@ -1981,7 +2231,7 @@ function setupAuthGate() {
       .single();
 
     if (profile?.account_status === 'approved') {
-      revealContent(displayName);
+      await revealContent(displayName);
     } else {
       showStep('pending');
     }

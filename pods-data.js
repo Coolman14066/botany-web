@@ -219,9 +219,9 @@ function getPlantAvatar(levelKey) {
   return PLANT_AVATARS[levelKey] || PLANT_AVATARS.moss;
 }
 
-// XP calculation: 10 XP per hour saved + 50 XP per use case + 15 XP per pro tip
-function calculateXP(hours, useCaseCount, tipCount) {
-  return Math.round((hours || 0) * 10) + ((useCaseCount || 0) * 50) + ((tipCount || 0) * 15);
+// XP calculation: 10 XP per hour saved + 50 XP per use case + 15 XP per pro tip + 25 XP per claimed referral
+function calculateXP(hours, useCaseCount, tipCount, referralCount) {
+  return Math.round((hours || 0) * 10) + ((useCaseCount || 0) * 50) + ((tipCount || 0) * 15) + ((referralCount || 0) * 25);
 }
 
 // Get level object from XP value

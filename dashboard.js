@@ -103,7 +103,7 @@ function processUsers(data) {
   });
 
   return Object.values(map).map(u => {
-    const xp = calculateXP(u.hours, u.useCases, u.tipCount);
+    const xp = calculateXP(u.hours, u.useCases, u.tipCount, u.referralCount);
     return {
       ...u,
       totalHours: Math.round(u.hours * 10) / 10,
@@ -167,7 +167,7 @@ const TUTORIAL_STEPS = [
   },
   {
     type: 'modal', icon: '\u2b50', title: 'How XP & Levels Work',
-    body: 'You earn XP by saving hours (10 XP/hr), submitting use cases (50 XP each), and sharing pro tips (15 XP each). Your level grows from \ud83e\udeb4 Moss to \ud83c\udfd4\ufe0f Sequoia!'
+    body: 'You earn XP by saving hours (10 XP/hr), submitting use cases (50 XP each), and sharing pro tips (15 XP each). Refer friends who join to earn 25 XP each! Your level grows from \ud83e\udeb4 Moss to \ud83c\udfd4\ufe0f Sequoia!'
   },
   {
     type: 'highlight', target: '#dash-stats-row', title: 'Your Stats at a Glance',
@@ -179,7 +179,7 @@ const TUTORIAL_STEPS = [
   },
   {
     type: 'highlight', target: '#badges', title: '\ud83c\udfc5 Achievement Badges',
-    body: '11 badges to unlock! From First Bloom (your first use case) to Knowledge Pollinator (3+ pro tips). New unlocks trigger confetti \ud83c\udf89'
+    body: '12 badges to unlock! From First Bloom (your first use case) to Talent Scout (3+ referrals). New unlocks trigger confetti \ud83c\udf89'
   },
   {
     type: 'highlight', target: '#mytips', title: '\ud83d\udca1 Pro Tips',
@@ -454,7 +454,7 @@ function renderDashboard(user, allUsers, allData) {
 
 function renderTierProgress(user) {
   const el = document.getElementById('tier-progress');
-  const xp = calculateXP(user.totalHours, user.useCaseCount);
+  const xp = calculateXP(user.totalHours, user.useCaseCount, user.tipCount, user.referralCount);
   const level = getLevelFromXP(xp);
 
   // Build the level markers
@@ -845,6 +845,11 @@ const BADGE_CATALOG = [
     key: 'knowledge_pollinator', name: 'Knowledge Pollinator', icon: '🌻',
     desc: 'Share 3+ pro tips with the community',
     check: u => (u.tipCount || 0) >= 3
+  },
+  {
+    key: 'talent_scout', name: 'Talent Scout', icon: '🔍',
+    desc: 'Refer 3+ people who joined B.O.T.A.N.Y(E).',
+    check: u => (u.referralCount || 0) >= 3
   }
 ];
 
@@ -1133,6 +1138,10 @@ function renderMyTips(tips, userName) {
     return;
   }
 
+  // Show "Refer a Friend" button for all logged-in users
+  const referBtn = document.getElementById('refer-friend-btn');
+  if (referBtn) referBtn.style.display = '';
+
   // Setup clickable profile links on the dashboard
   setupDashboardProfileLinks();
 
@@ -1163,11 +1172,30 @@ function renderMyTips(tips, userName) {
       }
     } catch (e) { /* ok */ }
   }
+
+  // Load referral counts (claimed referrals per user)
+  let referralCounts = {};
+  if (dbClient) {
+    try {
+      const { data: refData } = await dbClient
+        .from('email_whitelist')
+        .select('added_by, referrer_name')
+        .eq('used', true)
+        .not('added_by', 'is', null);
+      if (refData) {
+        refData.forEach(r => {
+          referralCounts[r.referrer_name] = (referralCounts[r.referrer_name] || 0) + 1;
+        });
+      }
+    } catch (e) { /* ok */ }
+  }
+
   const allUsers = processUsers(allData);
-  // Inject tip counts into user objects
+  // Inject tip counts and referral counts into user objects
   allUsers.forEach(u => {
     u.tipCount = tipCounts[u.name] || 0;
-    u.xp = calculateXP(u.totalHours, u.useCaseCount, u.tipCount);
+    u.referralCount = referralCounts[u.name] || 0;
+    u.xp = calculateXP(u.totalHours, u.useCaseCount, u.tipCount, u.referralCount);
     u.tier = getTier(u.totalHours, u.useCaseCount);
   });
 
@@ -1223,6 +1251,12 @@ async function initAdminPanel() {
 
   // Load all approved users
   await loadAllUsers();
+
+  // Load whitelist
+  await loadWhitelist();
+
+  // Load pending referrals
+  await loadPendingReferrals();
 }
 
 async function loadPendingUsers() {
@@ -1231,9 +1265,9 @@ async function loadPendingUsers() {
 
   const { data: pending, error } = await dbClient
     .from('profiles')
-    .select('id, email, display_name, created_at, account_status')
+    .select('id, email, display_name, joined_at, account_status')
     .eq('account_status', 'pending')
-    .order('created_at', { ascending: false });
+    .order('joined_at', { ascending: false });
 
   if (error) {
     el.innerHTML = '<p class="admin-error">Error loading pending users.</p>';
@@ -1246,7 +1280,7 @@ async function loadPendingUsers() {
   }
 
   el.innerHTML = pending.map(user => {
-    const date = user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+    const date = user.joined_at ? new Date(user.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
     const name = user.display_name || user.email?.split('@')[0] || 'Unknown';
     const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
     return `
@@ -1409,9 +1443,9 @@ async function loadAllUsers() {
 
   const { data: users } = await dbClient
     .from('profiles')
-    .select('id, email, display_name, is_admin, account_status, created_at')
+    .select('id, email, display_name, is_admin, account_status, joined_at')
     .eq('account_status', 'approved')
-    .order('created_at', { ascending: true });
+    .order('joined_at', { ascending: true });
 
   if (!users || users.length === 0) {
     el.innerHTML = '<p class="admin-empty">No approved users yet.</p>';
@@ -1447,9 +1481,9 @@ async function loadPasswordResetRequests() {
 
   const { data: resets, error } = await dbClient
     .from('profiles')
-    .select('id, email, display_name, created_at')
+    .select('id, email, display_name, joined_at')
     .eq('password_reset_requested', true)
-    .order('created_at', { ascending: false });
+    .order('joined_at', { ascending: false });
 
   if (error) {
     el.innerHTML = '<p class="admin-error">Error loading reset requests.</p>';
@@ -1521,4 +1555,348 @@ async function handlePasswordReset(userId, email) {
     alert('Error: ' + e.message);
     if (row) row.style.opacity = '1';
   }
+}
+
+// ============================================
+// EMAIL WHITELIST (Admin)
+// ============================================
+async function loadWhitelist() {
+  const el = document.getElementById('admin-whitelist-list');
+  if (!el || !dbClient) return;
+
+  const { data: entries, error } = await dbClient
+    .from('email_whitelist')
+    .select('*')
+    .eq('source', 'admin')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    el.innerHTML = '<p class="admin-error">Error loading whitelist.</p>';
+    return;
+  }
+
+  if (!entries || entries.length === 0) {
+    el.innerHTML = '<p class="admin-empty">No whitelisted emails yet.</p>';
+    return;
+  }
+
+  el.innerHTML = entries.map(e => {
+    const badge = e.used
+      ? '<span class="admin-used-badge">Claimed</span>'
+      : '<span class="admin-used-badge pending">Pending Signup</span>';
+    const removeBtn = e.used ? '' : `<button class="admin-remove-btn" onclick="removeFromWhitelist('${e.id}')">Remove</button>`;
+    return `
+      <div class="admin-user-row" id="admin-wl-${e.id}">
+        <div class="admin-user-info" style="flex:1;">
+          <div class="admin-user-email">${e.email}</div>
+          <div class="admin-user-date">Added ${new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+        </div>
+        ${badge}
+        ${removeBtn}
+      </div>
+    `;
+  }).join('');
+}
+
+async function addToWhitelist() {
+  const input = document.getElementById('admin-whitelist-input');
+  const statusEl = document.getElementById('admin-whitelist-status');
+  if (!input || !dbClient) return;
+
+  const email = input.value.trim().toLowerCase();
+  statusEl.textContent = '';
+  statusEl.className = 'admin-status';
+
+  if (!email) { statusEl.textContent = 'Please enter an email.'; statusEl.classList.add('error'); return; }
+  if (!email.endsWith('@accenture.com')) { statusEl.textContent = 'Must be an @accenture.com email.'; statusEl.classList.add('error'); return; }
+
+  // Check if already a user
+  const { data: existingUser } = await dbClient.from('profiles').select('id').eq('email', email).single();
+  if (existingUser) { statusEl.textContent = 'This person already has an account!'; statusEl.classList.add('error'); return; }
+
+  const { error } = await dbClient.from('email_whitelist').insert({
+    email,
+    added_by: window.__botanyUserId,
+    source: 'admin',
+    status: 'approved'
+  });
+
+  if (error) {
+    if (error.code === '23505') {
+      statusEl.textContent = 'This email is already on the whitelist.';
+    } else {
+      statusEl.textContent = 'Error: ' + error.message;
+    }
+    statusEl.classList.add('error');
+    return;
+  }
+
+  input.value = '';
+  statusEl.textContent = 'Added! Invite template below.';
+  statusEl.classList.add('success');
+
+  // Show invite email template
+  const siteUrl = window.location.origin;
+  const name = email.split('@')[0];
+  showEmailTemplateOptions(email, name);
+
+  await loadWhitelist();
+}
+
+async function removeFromWhitelist(id) {
+  if (!dbClient) return;
+  const row = document.getElementById(`admin-wl-${id}`);
+  if (row) row.style.opacity = '0.5';
+
+  const { error } = await dbClient.from('email_whitelist').delete().eq('id', id).eq('used', false);
+  if (error) {
+    alert('Error removing: ' + error.message);
+    if (row) row.style.opacity = '1';
+    return;
+  }
+
+  if (row) {
+    row.style.transform = 'translateX(100%)';
+    row.style.opacity = '0';
+    setTimeout(() => row.remove(), 300);
+  }
+}
+
+// ============================================
+// PENDING REFERRALS (Admin)
+// ============================================
+async function loadPendingReferrals() {
+  const el = document.getElementById('admin-referral-list');
+  if (!el || !dbClient) return;
+
+  const { data: referrals, error } = await dbClient
+    .from('email_whitelist')
+    .select('*')
+    .eq('source', 'referral')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    el.innerHTML = '<p class="admin-error">Error loading referrals.</p>';
+    return;
+  }
+
+  if (!referrals || referrals.length === 0) {
+    el.innerHTML = '<p class="admin-empty">No pending referrals.</p>';
+    return;
+  }
+
+  el.innerHTML = referrals.map(r => {
+    const date = new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return `
+      <div class="admin-user-row" id="admin-ref-${r.id}">
+        <div class="admin-user-info" style="flex:1;">
+          <div class="admin-user-name">${r.email}</div>
+          <div class="admin-user-date">Referred by: <strong>${r.referrer_name || 'Unknown'}</strong> on ${date}</div>
+          ${r.referral_note ? `<div class="admin-referral-note">"${r.referral_note}"</div>` : ''}
+        </div>
+        <div class="admin-user-actions">
+          <button class="admin-approve-btn" onclick="approveReferral('${r.id}', '${r.email}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            Approve
+          </button>
+          <button class="admin-reject-btn" onclick="rejectReferral('${r.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Reject
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function approveReferral(id, email) {
+  if (!dbClient) return;
+  const row = document.getElementById(`admin-ref-${id}`);
+  if (row) row.style.opacity = '0.5';
+
+  const { error } = await dbClient
+    .from('email_whitelist')
+    .update({ status: 'approved' })
+    .eq('id', id);
+
+  if (error) {
+    alert('Error approving referral: ' + error.message);
+    if (row) row.style.opacity = '1';
+    return;
+  }
+
+  // Show invite email template
+  const siteUrl = window.location.origin;
+  const name = email.split('@')[0];
+
+  // Fetch referrer name for the template
+  const { data: entry } = await dbClient.from('email_whitelist').select('referrer_name').eq('id', id).single();
+  const referrerName = entry?.referrer_name || 'Someone';
+
+  const subject = "You've been invited to B.O.T.A.N.Y(E).!";
+  const body = `Hi there,\n\n${referrerName} invited you to join B.O.T.A.N.Y(E). — an AI upskilling community.\n\nVisit ${siteUrl} and sign up with this email (${email}) — your account will be auto-approved!\n\nWelcome to the garden!`;
+
+  const hintEl = document.getElementById('admin-email-hint');
+  if (hintEl) hintEl.style.display = 'none';
+  const batchListEl = document.getElementById('admin-batch-list');
+  const batchEmailsEl = document.getElementById('admin-batch-emails');
+  if (batchListEl) batchListEl.style.display = '';
+
+  const templateRow = document.createElement('div');
+  templateRow.className = 'admin-email-row';
+  templateRow.innerHTML = `
+    <span class="admin-chip-name">${name} (${email}) — Referral</span>
+    <button class="admin-approve-btn admin-copy-email-btn" style="padding:4px 12px;font-size:0.75rem;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy Invite
+    </button>
+  `;
+  templateRow.querySelector('.admin-copy-email-btn').addEventListener('click', () => {
+    copyToClipboard(`Subject: ${subject}\n\n${body}`);
+  });
+  batchEmailsEl.appendChild(templateRow);
+
+  // Remove from pending list
+  if (row) {
+    row.style.transform = 'translateX(100%)';
+    row.style.opacity = '0';
+    setTimeout(() => {
+      row.remove();
+      const el = document.getElementById('admin-referral-list');
+      if (el && el.children.length === 0) {
+        el.innerHTML = '<p class="admin-empty">No pending referrals.</p>';
+      }
+    }, 300);
+  }
+}
+
+async function rejectReferral(id) {
+  if (!confirm('Reject this referral?')) return;
+  if (!dbClient) return;
+
+  const row = document.getElementById(`admin-ref-${id}`);
+  if (row) row.style.opacity = '0.5';
+
+  const { error } = await dbClient
+    .from('email_whitelist')
+    .update({ status: 'rejected' })
+    .eq('id', id);
+
+  if (error) {
+    alert('Error rejecting referral: ' + error.message);
+    if (row) row.style.opacity = '1';
+    return;
+  }
+
+  if (row) {
+    row.style.transform = 'translateX(-100%)';
+    row.style.opacity = '0';
+    setTimeout(() => {
+      row.remove();
+      const el = document.getElementById('admin-referral-list');
+      if (el && el.children.length === 0) {
+        el.innerHTML = '<p class="admin-empty">No pending referrals.</p>';
+      }
+    }, 300);
+  }
+}
+
+// ============================================
+// SHARED REFERRAL MODAL (used by both index + dashboard)
+// ============================================
+function openReferralModal() {
+  // Remove any existing modal
+  document.getElementById('referral-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'referral-modal';
+  modal.className = 'referral-modal';
+  modal.innerHTML = `
+    <div class="referral-card">
+      <button class="referral-close" onclick="document.getElementById('referral-modal').remove()">&times;</button>
+      <h3 style="font-family:var(--font-display);font-size:1.3rem;margin-bottom:0.25rem;">Refer a Friend</h3>
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:1.5rem;">Invite a colleague to join B.O.T.A.N.Y(E). They'll need admin approval before their account is activated.</p>
+      <input type="email" id="referral-email" class="gate-input" placeholder="colleague@accenture.com" autocomplete="email">
+      <textarea id="referral-note" class="gate-input" placeholder="Optional note for the admin (e.g. why they'd be great)" rows="2" style="resize:vertical;min-height:60px;"></textarea>
+      <button id="referral-submit" class="gate-btn gate-btn-primary" onclick="handleReferralSubmit()">Send Referral</button>
+      <div id="referral-status" style="font-size:0.85rem;text-align:center;margin-top:0.75rem;min-height:1.2em;"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('referral-email')?.focus(), 200);
+}
+
+async function handleReferralSubmit() {
+  const emailInput = document.getElementById('referral-email');
+  const noteInput = document.getElementById('referral-note');
+  const statusEl = document.getElementById('referral-status');
+  const btn = document.getElementById('referral-submit');
+  if (!emailInput || !statusEl) return;
+
+  const email = emailInput.value.trim().toLowerCase();
+  const note = noteInput?.value?.trim() || '';
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+
+  if (!email) { statusEl.textContent = 'Please enter an email.'; statusEl.style.color = '#f87171'; return; }
+  if (!email.endsWith('@accenture.com')) { statusEl.textContent = 'Must be an @accenture.com email.'; statusEl.style.color = '#f87171'; return; }
+
+  // Get current user's info
+  const client = window.supabaseClient || window.dbClient;
+  if (!client) { statusEl.textContent = 'Connection error.'; statusEl.style.color = '#f87171'; return; }
+
+  const { data: { session } } = await client.auth.getSession();
+  if (!session) { statusEl.textContent = 'Please log in first.'; statusEl.style.color = '#f87171'; return; }
+
+  // Self-referral check
+  if (email === session.user.email?.toLowerCase()) {
+    statusEl.textContent = "You can't refer yourself!";
+    statusEl.style.color = '#f87171';
+    return;
+  }
+
+  // Check if already a user
+  const { data: existingUser } = await client.from('profiles').select('id').eq('email', email).single();
+  if (existingUser) { statusEl.textContent = 'This person already has an account!'; statusEl.style.color = '#f87171'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  const referrerName = session.user.user_metadata?.display_name || session.user.email.split('@')[0];
+
+  const { error } = await client.from('email_whitelist').insert({
+    email,
+    added_by: session.user.id,
+    source: 'referral',
+    status: 'pending',
+    referrer_name: referrerName,
+    referral_note: note
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Send Referral';
+
+  if (error) {
+    if (error.code === '23505') {
+      // Duplicate — check if pending or approved
+      const { data: existing } = await client.from('email_whitelist').select('status').eq('email', email).single();
+      if (existing?.status === 'pending') {
+        statusEl.textContent = 'Already referred — awaiting admin review.';
+      } else if (existing?.status === 'approved') {
+        statusEl.textContent = 'Already approved! They just need to sign up.';
+      } else {
+        statusEl.textContent = 'This email has already been referred.';
+      }
+    } else {
+      statusEl.textContent = 'Error: ' + error.message;
+    }
+    statusEl.style.color = '#f87171';
+    return;
+  }
+
+  statusEl.textContent = 'Referral sent! An admin will review it soon.';
+  statusEl.style.color = '#4ade80';
+  emailInput.value = '';
+  if (noteInput) noteInput.value = '';
 }

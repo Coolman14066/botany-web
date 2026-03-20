@@ -38,6 +38,7 @@
         </ul>
       </nav>
       <div class="header-actions">
+        <button class="btn btn-outline-header" id="refer-friend-btn" onclick="openReferralModal()" style="display:none;">Refer a Friend</button>
         <a href="index.html" class="btn btn-outline-header">← Back to B.O.T.A.N.Y(E).</a>
         <button class="btn btn-outline-header btn-logout" id="logout-btn">Log Out</button>
       </div>
@@ -206,6 +207,33 @@
         </div>
         <!-- Clipboard fallback textarea (hidden by default) -->
         <textarea id="admin-clipboard-fallback" class="admin-clipboard-fallback" style="display:none;" readonly></textarea>
+      </div>
+
+      <!-- Email Whitelist -->
+      <div class="admin-card" style="margin-top:1.5rem;">
+        <h3 class="admin-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8l2 2-5 5-3-3 2-2z"/></svg>
+          Email Whitelist
+        </h3>
+        <div class="admin-whitelist-add">
+          <input type="email" id="admin-whitelist-input" class="admin-input" placeholder="colleague@accenture.com">
+          <button class="admin-approve-btn" onclick="addToWhitelist()">Add to Whitelist</button>
+        </div>
+        <div id="admin-whitelist-status" class="admin-status"></div>
+        <div id="admin-whitelist-list" class="admin-pending-list" style="margin-top:1rem;">
+          <p class="admin-loading">Loading whitelist...</p>
+        </div>
+      </div>
+
+      <!-- Pending Referrals -->
+      <div class="admin-card" style="margin-top:1.5rem;">
+        <h3 class="admin-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Pending Referrals
+        </h3>
+        <div id="admin-referral-list" class="admin-pending-list">
+          <p class="admin-loading">Loading referrals...</p>
+        </div>
       </div>
 
       <!-- Password Reset Requests -->
